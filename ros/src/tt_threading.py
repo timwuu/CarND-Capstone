@@ -16,7 +16,7 @@ import threading
 
 __path__ = [""]
 
-from waypoint_updater.path_planner import PathPlanner
+from waypoint_updater.path_planner_b import PathPlanner
 from twist_controller.ai_controller import AIController
 
 y = None
@@ -31,16 +31,22 @@ count = 0
 ##from bridge import Bridge
 ##from conf import conf
 
-sio = socketio.Server(async_mode='eventlet')
+sio = socketio.Server( async_mode='eventlet')
 app = Flask(__name__)
 ##bridge = Bridge(conf)
 msgs = {}
 maps_x = []
 maps_y = []
 
+cw_x = None
+cw_y = None
+
 dbw_enable = False
 data_rdy = False
 control_data_rdy = False
+
+pose_lock = threading.Lock()
+final_waypoint_lock = threading.Lock()
 
 def worker():
     global x, y, yaw
@@ -57,18 +63,80 @@ def worker():
         time.sleep(2)
     return
 
-def dbw_control():  # 5Hz
+
+def dbw_control3():  # 5Hz
     global dbw_enable
     global steering, throttle, brake
 
     global data_rdy, control_data_rdy
+
+    steering= 2
 
     while True:
         if dbw_enable:
             if data_rdy:
                 control_data_rdy = False
 
-                find_path()
+                if steering > 0.19:
+                    steering = -2.0
+                else:
+                    steering = 2.0
+
+                throttle = 0.05
+                brake = 0.0
+
+                control_data_rdy = True
+
+                data_rdy = False
+
+        time.sleep(2.0)
+
+    pass
+
+def find_final_waypoint():  # 0.5Hz
+    global dbw_enable
+    global steering, throttle, brake
+
+    global data_rdy, control_data_rdy
+
+    fq = 1.0/0.5 #every 2 seconds
+
+    while True:
+        if dbw_enable:
+            final_waypoint_lock.acquire()
+            find_path()
+            final_waypoint_lock.release()
+        time.sleep(fq)
+    pass
+
+def dbw_control():  # 5Hz
+    fq = 1/10.0
+
+    global dbw_enable
+    global steering, throttle, brake
+
+    global data_rdy, control_data_rdy
+
+    global x, y, yaw, velocity, pp
+    global cw_x, cw_y
+    global sp_x, sp_y
+
+    while True:
+        if dbw_enable:
+            if data_rdy and cw_x is not None:
+                control_data_rdy = False
+
+                #get the current car position and the yaw angle, the speed
+                car_x = x
+                car_y = y
+                theta = yaw
+
+                car_speed = velocity
+
+                final_waypoint_lock.acquire()
+                sp_x, sp_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x, cw_y)
+                final_waypoint_lock.release()
+
                 find_actuation()
                 #steering=0.0
                 #throttle=0.5
@@ -81,7 +149,7 @@ def dbw_control():  # 5Hz
 
                 data_rdy = False
 
-        time.sleep(0.2)
+        time.sleep(fq)
 
     pass
 
@@ -96,9 +164,6 @@ def connect(sid, environ):
         for row in maps_reader:
             maps_x.append(float(row[0]))
             maps_y.append(float(row[1]))
-    #print("maps_x[len(maps_x)-1]: ", maps_x[len(maps_x)-1])
-    #print("maps_y[len(maps_y)-1]: ", maps_y[len(maps_y)-1])
-    #print("len(maps):",len(maps))
     pp = PathPlanner()
     maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
 
@@ -116,9 +181,14 @@ def telemetry(sid, data):
         dbw_enable = data["dbw_enable"]
 
     global data_rdy
+    global pose_lock
+
     if not data_rdy:
         # get new data
+        pose_lock.acquire()  #blocking: waiting for acquire the lock
         extract_data(data)
+        pose_lock.release()
+
         data_rdy = True
 
     if control_data_rdy:
@@ -130,7 +200,7 @@ def telemetry(sid, data):
 @sio.on('control') #25Hz
 def control(sid, data):
     #global count
-    #print(time.strftime('%X')," #",count," - ", data)
+    #print(time.strftime('%X'), data)
     pass
 
 @sio.on('obstacle')
@@ -155,12 +225,13 @@ def image(sid, data):
 
 def send_control():
     global steering, throttle, brake
-    sio.emit('steer', data={'steering_angle': str(steering)}, skip_sid=True)
+
+    sio.emit('steer', data={'steering_angle': str(steering)})
 
     if brake > 0.5:
-        sio.emit('brake', data={'brake': str(brake*20.0)}, skip_sid=True)
+        sio.emit('brake', data={'brake': str(brake*20.0)})
     else:
-        sio.emit('throttle', data={'throttle': str(throttle)}, skip_sid=True)
+        sio.emit('throttle', data={'throttle': str(throttle)})
     pass
 
 def extract_data(data):
@@ -171,41 +242,49 @@ def extract_data(data):
     yaw = data['yaw']
     velocity = data['velocity']
     x = data['x']
-    #print("x:",x,"y:",y,"yaw:",yaw,"velocity:",velocity)
+
+    if yaw > 360.0 or yaw < 0.0:
+        print ('--- yaw:', yaw)
+        while True:
+            time.sleep(1.0)
     pass
 
 def find_path():
     global maps_x, maps_y, x, y, yaw, velocity, pp
     global cw_x, cw_y
+
+    global pose_lock
+    pose_lock.acquire()
     car_x = x
     car_y = y
     theta = yaw
     car_speed = velocity
+    pose_lock.release()
 
     #cw = closest waypoints
     cw_x, cw_y = pp.getNextWaypoints(car_x, car_y, theta, LOOKAHEAD_WPS, maps_x, maps_y)
 
-    cw_x, cw_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x, cw_y)
+    #cw_x, cw_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x, cw_y)
 
     pass
 
 def find_actuation():
     global x, y, yaw, velocity, throttle, brake, steering
-    global cw_x, cw_y
+    global sp_x, sp_y
 
-    desiredSpeed = 10.0
+    desiredSpeed = 50.0
     currentSpeed = velocity
-    target_x = cw_x[5]
-    target_y = cw_y[5]
+    target_x = sp_x[5]
+    target_y = sp_y[5]
     current_x = x
     current_y = y
     current_yaw = yaw
 
-    if current_x > 2250.0 or current_y > 2800.0:
-        desiredSpeed = 10.0
+    #if current_x > 2250.0 or current_y > 2800.0:
+    #    desiredSpeed = 10.0
 
-    dx = cw_x[1]-current_x
-    dy = cw_y[1]-current_y
+    dx = sp_x[1]-current_x
+    dy = sp_y[1]-current_y
     dist = math.sqrt( dx*dx+dy*dy)
 
     if dist> 8.0:
@@ -215,23 +294,12 @@ def find_actuation():
   
     throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
 
-    steering = controller.steering(cw_x, cw_y, current_x, current_y, current_yaw) 
+    steering = controller.steering(sp_x, sp_y, current_x, current_y, current_yaw) 
 
     #if dist> 3.0 and brake == 1:
     #    brake = 20000
-
-    #target_x = cw_x[1]
-    #target_y = cw_y[1]
-
-    #throttle1, brake1, steering1 = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
- 
-    #steering = (steering + steering1)/2.0
- 
-    #print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-    #print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-
-    #print(time.strftime('%X'),"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-    print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
+    
+    #print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
     
     if dist > 10.0:
         print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
@@ -245,9 +313,12 @@ if __name__ == '__main__':
     #th = threading.Thread(target=worker)
     #th.start()
 
-    # start control thread
-    th = threading.Thread(target=dbw_control)
+    # start find_final_waypoint thread
+    th = threading.Thread(target=find_final_waypoint)
     th.start()
+
+    th2 = threading.Thread(target=dbw_control)
+    th2.start()
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)

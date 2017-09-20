@@ -7,7 +7,7 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 BrakeSensitivity = 1.0
 AccelSensitivity = 0.04
-SteerSensitivity = 0.05  #
+SteerSensitivity = 0.025  # default = 0.05
 ThrottleMin = 0
 ThrottleMax = 1
 BrakeMin = 0
@@ -30,6 +30,7 @@ class AIController(object):
 
         pass       
 
+    #cw_x,cw_y is the interpolated spline curve
     def steering(self, cw_x, cw_y, current_x, current_y, current_yaw):
 
         #lookahead
@@ -48,7 +49,7 @@ class AIController(object):
 
         targetAngle = theta * 0.7 + phi * 0.3
 
-        steering = numpy.clip(targetAngle*SteerSensitivity, -5, 5)
+        steering = numpy.clip(targetAngle*SteerSensitivity, -2, 2)
 
         return steering
 
@@ -74,21 +75,13 @@ class AIController(object):
         #targetAngle = Mathf.Atan2(localTarget.x, localTarget.z) * Mathf.Rad2Deg;
         
         #targetAngle = Mathf.Atan2(localTarget.x, localTarget.z) * Mathf.Rad2Deg;
-        targetAngle = math.degrees(math.atan2(local_target_y, local_target_x)) 
+        targetAngle = math.degrees(math.atan2(local_target_y, local_target_x)) - current_yaw 
         
-        targetAngle = targetAngle - current_yaw
-
-        #print( targetAngel + current_yaw, current_yaw)
-
-        if targetAngle > 180.0:
-            targetAngle = targetAngle - 360.0
-        else:
-            if targetAngle < -180.0:
-                targetAngle = targetAngle + 360.0
+        targetAngle = self.normalize_angle( targetAngle)
 
         #get the amount of steering needed to aim the car towards the target
         #steer = Mathf.Clamp(targetAngle * m_SteerSensitivity, -1, 1) * Mathf.Sign(m_CarController.CurrentSpeed);
-        steer = numpy.clip(targetAngle*SteerSensitivity, -2, 2) #TODO: Implement Reverse Gear Change * numpy.sign(currentSpeed)
+        steer = numpy.clip(targetAngle*SteerSensitivity, -1.0, 1.0) #TODO: Implement Reverse Gear Change * numpy.sign(currentSpeed)
 
         if accel > 0:
             throttle = accel

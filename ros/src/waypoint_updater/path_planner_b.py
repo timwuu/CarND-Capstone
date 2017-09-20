@@ -5,7 +5,6 @@ import csv
 from scipy import interpolate
 
 
-
 class PathPlanner(object):
     def __init__(self):
         self.waypoints = None
@@ -23,13 +22,6 @@ class PathPlanner(object):
         car_s, car_d = self.getFrenet(car_x, car_y, theta, maps_x, maps_y)
         maps_s, maps_d = self.getMapsS(maps_x, maps_y)
 
-        '''
-        testX, testY = self.getXY(0.,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(30,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(60,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(90,0, maps_s, maps_x, maps_y)
-        '''
-
         map_waypoints_s = maps_s
         map_waypoints_x = maps_x
         map_waypoints_y = maps_y
@@ -38,84 +30,6 @@ class PathPlanner(object):
         ref_vel = min(car_speed,40.0)  #limit to 10 miles/hr #TODO: multiply by factor??
         #if ref_vel == 0:
         #    ref_vel = 1.0
-
-        '''
-        cpp code for sensor fusion
-
-        // Previous path data given to the Planner
-        auto previous_path_x = j[1]["previous_path_x"];
-        auto previous_path_y = j[1]["previous_path_y"];
-        // Previous path's end s and d values
-        double end_path_s = j[1]["end_path_s"];
-        double end_path_d = j[1]["end_path_d"];
-
-        // Sensor Fusion Data, a list of all other cars on the same side of the road.
-        auto sensor_fusion = j[1]["sensor_fusion"];
-
-        int prev_size = previous_path_x.size();  // the size of the last path the car was following
-        // cout << "prev_size: " << prev_size << endl;
-
-        if (prev_size > 0) {
-            car_s = end_path_s;
-        }
-
-        bool left_side_clear = true;
-
-        for (int i=0; i < sensor_fusion.size(); i++) {
-            float d = sensor_fusion[i][6];
-            if ((lane > 0) && ((d < (2 + 4 * (lane - 1) + 2) && d > (2 + 4 * (lane - 1) - 2)))) {
-                // car is on the left lane
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx * vx + vy * vy);
-                double check_car_s = sensor_fusion[i][5];
-
-                check_car_s += ((double) prev_size * 0.02 * check_speed);  // future distance of the car
-
-                if (fabs(check_car_s - car_s) < 30) {
-                    left_side_clear = false;
-                    cout << "alert: car detected on the left!" << endl;
-                }
-            }
-        }
-
-        bool too_close = false;
-        bool very_close = false;
-
-        // find ref_v to use
-        for (int i=0; i < sensor_fusion.size(); i++) {
-            float d = sensor_fusion[i][6];
-            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
-                // car is in my lane
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx * vx + vy * vy);
-                double check_car_s = sensor_fusion[i][5];
-
-                check_car_s += ((double) prev_size * 0.02 * check_speed);  // future distance of the car
-
-                if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-                    // ref_vel = 29.5; // mph
-                    too_close = true;
-                    if ((check_car_s - car_s) < 15) {
-                        very_close = true;
-                    }
-                    if ((lane > 0) & (left_side_clear)) {
-                        lane = 0;
-                    }
-                }
-            }
-        }
-
-        if (very_close) {
-            ref_vel -= 0.448;
-        }
-        if (too_close) {
-            ref_vel -= 0.224;
-        } else if (ref_vel < 49.5) {
-            ref_vel += 0.224;
-        }
-        '''
 
         # Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
         # Later we will interpolate these waypoints with spline and fill it with
@@ -288,7 +202,7 @@ class PathPlanner(object):
         for i in range(len(maps_x)-1, 0, -1):
             map_x = maps_x[i]
             map_y = maps_y[i]
-            dist = self.distance(x, y, map_x, map_y);
+            dist = self.distance(x, y, map_x, map_y)
             if (dist < closestLen):
                 closestLen = dist
                 closestWaypoint = i
@@ -296,7 +210,7 @@ class PathPlanner(object):
         return closestWaypoint;  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
 
     def NextWaypoint(self, x, y, theta, maps_x, maps_y):
-        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y);
+        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y)
         map_x = maps_x[closestWaypoint]
         map_y = maps_y[closestWaypoint]
 
@@ -353,6 +267,11 @@ class PathPlanner(object):
 
         if next_wp >= len(maps_x):
             pass
+
+        n_x = maps_x[next_wp] - maps_x[prev_wp]
+        n_y = maps_y[next_wp] - maps_y[prev_wp]
+        x_x = x - maps_x[prev_wp]
+        x_y = y - maps_y[prev_wp]
 
         try:
             n_x = maps_x[next_wp] - maps_x[prev_wp]
