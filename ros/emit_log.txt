@@ -1,0 +1,53 @@
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]
+\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]
+\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]
+\x81,42["throttle",{"throttle":"0.339796269719"}]\x81142["steer",{"steering_angle":"-0.0246680805418"}]\x81,42["throttle",{"throttle":"0.339796269719"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]
+\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]
+\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]
+\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]
+\x81,42["throttle",{"throttle":"0.347341788743"}]\x81142["steer",{"steering_angle":"-0.0220960367839"}]\x81,42["throttle",{"throttle":"0.347341788743"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]
+\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]
+\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]'
+12:16:14 b'\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]'
+12:16:14 b'\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]
+\x81,42["throttle",{"throttle":"0.342777004766"}]\x81142["steer",{"steering_angle":"-0.0120539611081"}]\x81,42["throttle",{"throttle":"0.342777004766"}]'
+
+
+======================= emit 'dummy' ==========
+12:40:19 b'\x81,42["throttle",{"throttle":"0.503968219959"}]\x81042["steer",{"steering_angle":"-0.158916453799"}]\x81,42["throttle",{"throttle":"0.503968219959"}]\x8104
+2["steer",{"steering_angle":"-0.158916453799"}]\x81,42["throttle",{"throttle":"0.503968219959"}]\x81042["steer",{"steering_angle":"-0.158916453799"}]\x81,42["throttle",
+{"throttle":"0.503968219959"}]\x81042["steer",{"steering_angle":"-0.156303763722"}]\x81,42["throttle",{"throttle":"0.503288926097"}]\x81\x1342["dummy","dummy"]\x81042["
+steer",{"steering_angle":"-0.156303763722"}]\x81,42["throttle",{"throttle":"0.503288926097"}]\x81\x1342["dummy","dummy"]\x81042["steer",{"steering_angle":"-0.1563037637
+22"}]\x81,42["throttle",{"throttle":"0.503288926097"}]\x81\x1342["dummy","dummy"]\x81042["steer",{"steering_angle":"-0.156303763722"}]\x81,42["throttle",{"throttle":"0.
+503288926097"}]\x81\x1342["dummy","dummy"]\x81042["steer",{"steering_angle":"-0.156303763722"}]\x81,42["throttle",{"throttle":"0.503288926097"}]'

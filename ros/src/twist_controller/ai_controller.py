@@ -6,7 +6,7 @@ import math
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 BrakeSensitivity = 1.0
-AccelSensitivity = 0.04
+AccelSensitivity = 0.06   # default = 0.04
 SteerSensitivity = 0.025  # default = 0.05
 ThrottleMin = 0
 ThrottleMax = 1

@@ -17,6 +17,7 @@ __path__ = [""]
 
 from waypoint_updater.path_planner import PathPlanner
 from twist_controller.ai_controller import AIController
+from twist_controller.pid import PID
 
 y = None
 z = None
@@ -38,6 +39,12 @@ maps_x = []
 maps_y = []
 
 dbw_enable = False
+
+SAMPLE_TIME = 0.5
+ACCEL_SENSITIVITY = 0.06
+speed_controller = PID( ACCEL_SENSITIVITY*2.5, 0.006, 1.25, mn=-0.5, mx=0.5)
+
+TARGET_SPEED = 40.0 #MPH
 
 #logging.basicConfig(filename='example.log', level=logging.DEBUG)
 
@@ -177,7 +184,7 @@ def find_actuation():
     global x, y, yaw, velocity, throttle, brake, steering
     global cw_x, cw_y
 
-    desiredSpeed = 40.0
+    desiredSpeed = TARGET_SPEED
     currentSpeed = velocity
     target_x = cw_x[5]
     target_y = cw_y[5]
@@ -199,28 +206,21 @@ def find_actuation():
 
     controller = AIController()
   
-    throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
+    #throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
+
+    brake = 0.0
+
+    global SAMPLE_TIME
+    throttle = speed_controller.step( desiredSpeed-currentSpeed, SAMPLE_TIME)
 
     steering = controller.steering(cw_x, cw_y, current_x, current_y, current_yaw) 
 
     #if dist> 3.0 and brake == 1:
     #    brake = 20000
-
-    #target_x = cw_x[1]
-    #target_y = cw_y[1]
-
-    #throttle1, brake1, steering1 = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
  
-    #steering = (steering + steering1)/2.0
- 
-    #print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-    #print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
+    delta_time = time.time() - start_time
 
-    #print(time.strftime('%X'),"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-
-    delta_time = int(time.time() - start_time)
-
-    print('{: d}\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(delta_time, dist,current_yaw,steering,throttle,brake))
+    print('{: .1f}\t<{: .2f} {: .2f} >\t{: .2f}\t({: .2f} )\t<{: .3f}\t{: .3f}\t{: .2f} >'.format(delta_time, current_x, current_y, dist,current_yaw,steering,throttle,brake))
     
     if dist > 10.0:
         print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)

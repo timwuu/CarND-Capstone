@@ -196,8 +196,8 @@ class PathPlanner(object):
     # int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
     def ClosestWaypoint(self, x, y, maps_x, maps_y):
 
-        closestLen = 100000;  # large number
-        closestWaypoint = -1; # -1 if point not found
+        closestLen = 100000  # large number
+        closestWaypoint = -1 # -1 if point not found
 
         for i in range(len(maps_x)-1, 0, -1):
             map_x = maps_x[i]
@@ -207,7 +207,7 @@ class PathPlanner(object):
                 closestLen = dist
                 closestWaypoint = i
 
-        return closestWaypoint;  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
+        return closestWaypoint  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
 
     def NextWaypoint(self, x, y, theta, maps_x, maps_y):
         closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y)
@@ -273,14 +273,14 @@ class PathPlanner(object):
         x_x = x - maps_x[prev_wp]
         x_y = y - maps_y[prev_wp]
 
-        try:
-            n_x = maps_x[next_wp] - maps_x[prev_wp]
-            n_y = maps_y[next_wp] - maps_y[prev_wp]
-            x_x = x - maps_x[prev_wp]
-            x_y = y - maps_y[prev_wp]
-        except:
-            print("next_wp",next_wp)
-            pass
+        # try:
+        #     n_x = maps_x[next_wp] - maps_x[prev_wp]
+        #     n_y = maps_y[next_wp] - maps_y[prev_wp]
+        #     x_x = x - maps_x[prev_wp]
+        #     x_y = y - maps_y[prev_wp]
+        # except:
+        #     print("next_wp",next_wp)
+        #     pass
 
 
         # find the projection of x onto n
@@ -298,14 +298,14 @@ class PathPlanner(object):
         centerToRef = self.distance(center_x, center_y, proj_x, proj_y)
 
         if (centerToPos <= centerToRef):
-            frenet_d *= -1;
+            frenet_d *= -1
 
         # calculate s value
-        frenet_s = 0;
+        frenet_s = 0
         for i in range(0, prev_wp):
             frenet_s += self.distance(maps_x[i], maps_y[i], maps_x[i + 1], maps_y[i + 1])
 
-        frenet_s += self.distance(0, 0, proj_x, proj_y);
+        frenet_s += self.distance(0, 0, proj_x, proj_y)
 
         return frenet_s, frenet_d
 

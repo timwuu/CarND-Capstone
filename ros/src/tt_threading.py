@@ -29,12 +29,12 @@ dbw_enable = None
 LOOKAHEAD_WPS = 200
 count = 0
 
-TARGET_SPEED = 50
+TARGET_SPEED = 50  # MPH
 
 ##from bridge import Bridge
 ##from conf import conf
 
-sio = socketio.Server( async_mode='eventlet')
+sio = socketio.Server( max_http_buffer_size=64000, async_mode='eventlet')
 app = Flask(__name__)
 ##bridge = Bridge(conf)
 msgs = {}
@@ -58,6 +58,9 @@ pre_throttle_tag_t = 0
 
 
 client_sid = None
+
+steering = None
+throttle = None
 
 def netmon():
     global client_sid, sio
@@ -212,9 +215,9 @@ def telemetry(sid, data):
 
         data_rdy = True
 
-    if control_data_rdy:
-        send_control()
-        control_data_rdy = False
+    #if control_data_rdy:
+    send_control()
+    #    control_data_rdy = False
 
     pass
 
@@ -234,7 +237,7 @@ def control(sid, data):
             pre_throttle_tag_t = time.time()   # start timer
         else:    
             if time.time() - pre_throttle_tag_t > 1.0:  #1 second
-                print('-- possibly bad TCP/IP connection --')
+                print(time.strftime('%X'), '-- possibly bad TCP/IP connection --')
                 pre_throttle_tag_t = 0
                 #disconnect the client in the monitor
                 client_sid = sid
@@ -266,6 +269,13 @@ def image(sid, data):
 
 def send_control():
     global steering, throttle, brake
+    global client_sid
+
+    if throttle is None:
+        return
+
+    if client_sid is not None:
+        sio.emit('dummy','dummy')
 
     sio.emit('steer', data={'steering_angle': str(steering)})
 
@@ -356,8 +366,8 @@ def find_actuation():
     
     global control_feedback
 
-    print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
-    print('\t\t\t\t\t\t{: f}\t{: f}\t{: f}'.format(control_feedback['steering_angle'],control_feedback['throttle'],control_feedback['brake']))
+    #print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
+    #print('\t\t\t\t\t\t{: f}\t{: f}\t{: f}'.format(control_feedback['steering_angle'],control_feedback['throttle'],control_feedback['brake']))
 
 
     if dist > 10.0:
@@ -389,4 +399,4 @@ if __name__ == '__main__':
     print("start WSGI server!")
 
     # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
+    eventlet.wsgi.server(eventlet.listen(('', 4567)), app, max_http_version='HTTP/1.0')
