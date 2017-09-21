@@ -10,6 +10,7 @@ import eventlet.wsgi
 import time
 import logging
 import math
+import random
 from flask import Flask, render_template
 
 import threading
@@ -27,6 +28,8 @@ x = None
 dbw_enable = None
 LOOKAHEAD_WPS = 200
 count = 0
+
+TARGET_SPEED = 50
 
 ##from bridge import Bridge
 ##from conf import conf
@@ -47,6 +50,24 @@ control_data_rdy = False
 
 pose_lock = threading.Lock()
 final_waypoint_lock = threading.Lock()
+
+control_feedback ="-- None --"
+
+pre_throttle_tag = 0
+pre_throttle_tag_t = 0
+
+
+client_sid = None
+
+def netmon():
+    global client_sid, sio
+
+    while True:
+        if client_sid is not None:
+            print('disconnet client', client_sid)
+            sio.disconnect(client_sid, namespace=None)
+            client_sid = None
+        time.sleep(0.25)    
 
 def worker():
     global x, y, yaw
@@ -110,7 +131,7 @@ def find_final_waypoint():  # 0.5Hz
     pass
 
 def dbw_control():  # 5Hz
-    fq = 1/10.0
+    fq = 1/2.5
 
     global dbw_enable
     global steering, throttle, brake
@@ -155,7 +176,7 @@ def dbw_control():  # 5Hz
 
 @sio.on('connect')
 def connect(sid, environ):
-    print("connect ", sid)
+    print("connect ", sid, ':', environ)
     global maps_x, maps_y, pp
     with open('./../../data/sim_waypoints.csv', 'rt') as csvfile:
         maps_x = []
@@ -199,8 +220,28 @@ def telemetry(sid, data):
 
 @sio.on('control') #25Hz
 def control(sid, data):
-    #global count
-    #print(time.strftime('%X'), data)
+    global control_feedback
+    control_feedback = data
+
+    global pre_throttle_tag, pre_throttle_tag_t
+
+    global client_sid
+
+    throttle = int(data['throttle']*10000)  #.349603
+    if throttle > 100 and throttle == pre_throttle_tag:
+
+        if pre_throttle_tag_t == 0:
+            pre_throttle_tag_t = time.time()   # start timer
+        else:    
+            if time.time() - pre_throttle_tag_t > 1.0:  #1 second
+                print('-- possibly bad TCP/IP connection --')
+                pre_throttle_tag_t = 0
+                #disconnect the client in the monitor
+                client_sid = sid
+    else:
+        pre_throttle_tag_t = 0
+
+    pre_throttle_tag = throttle
     pass
 
 @sio.on('obstacle')
@@ -230,23 +271,26 @@ def send_control():
 
     if brake > 0.5:
         sio.emit('brake', data={'brake': str(brake*20.0)})
+        sio.emit('throttle', data={'throttle': str(0.0)})
     else:
         sio.emit('throttle', data={'throttle': str(throttle)})
+        #sio.emit('brake', data={'brake': str(0.1)})
     pass
 
 def extract_data(data):
     global y, z, yaw, velocity, x, dbw_enable
     #data = json.loads(json_str)
-    y = data['y']
-    z = data['z']
-    yaw = data['yaw']
-    velocity = data['velocity']
-    x = data['x']
+    y = float(data['y'])
+    z = float(data['z'])
+    yaw = float(data['yaw'])
+    velocity = float(data['velocity'])
+    x = float(data['x'])
 
-    if yaw > 360.0 or yaw < 0.0:
-        print ('--- yaw:', yaw)
-        while True:
-            time.sleep(1.0)
+    #yaw data cleansing
+    if yaw > 360.0:
+        yaw = yaw - 360.0
+    if yaw < 0.0:
+        yaw = yaw + 360.0    
     pass
 
 def find_path():
@@ -271,8 +315,9 @@ def find_path():
 def find_actuation():
     global x, y, yaw, velocity, throttle, brake, steering
     global sp_x, sp_y
+    global TARGET_SPEED
 
-    desiredSpeed = 50.0
+    desiredSpeed = TARGET_SPEED
     currentSpeed = velocity
     target_x = sp_x[5]
     target_y = sp_y[5]
@@ -280,8 +325,8 @@ def find_actuation():
     current_y = y
     current_yaw = yaw
 
-    #if current_x > 2250.0 or current_y > 2800.0:
-    #    desiredSpeed = 10.0
+    if current_y > 2800.0:
+       desiredSpeed = 30.0
 
     dx = sp_x[1]-current_x
     dy = sp_y[1]-current_y
@@ -294,13 +339,27 @@ def find_actuation():
   
     throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
 
+    if throttle > 0.01:
+        throttle = throttle + (random.random()-0.5)/100.
+
     steering = controller.steering(sp_x, sp_y, current_x, current_y, current_yaw) 
 
-    #if dist> 3.0 and brake == 1:
-    #    brake = 20000
+    if math.fabs( steering) > 0.4:
+        if currentSpeed > 20:
+            brake = 5000.0
+    elif math.fabs( steering) > 0.3:
+        throttle = throttle * 0.2
+    elif math.fabs( steering) > 0.3:
+        throttle = throttle * 0.2
+    elif math.fabs( steering) > 0.2:
+        throttle = throttle * 0.3
     
-    #print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
-    
+    global control_feedback
+
+    print(time.strftime('%X'),'\t{: f}\t{: f}\t{: f}\t{: f}\t{: f}'.format(dist,current_yaw,steering,throttle,brake))
+    print('\t\t\t\t\t\t{: f}\t{: f}\t{: f}'.format(control_feedback['steering_angle'],control_feedback['throttle'],control_feedback['brake']))
+
+
     if dist > 10.0:
         print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
 
@@ -319,6 +378,10 @@ if __name__ == '__main__':
 
     th2 = threading.Thread(target=dbw_control)
     th2.start()
+
+    th3 = threading.Thread(target=netmon)
+    th3.start()
+
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)

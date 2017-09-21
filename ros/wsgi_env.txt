@@ -1,0 +1,44 @@
+ 0.133386 -
+ 0.130351
+ 0.140314 +
+ 0.133386 -
+ 0.132222 +
+ 0.133386 -
+ 0.146652 *
+ 0.133386 -
+ 0.140958
+ 0.146652 *
+ 0.139826
+ 0.146652 *
+
+ connect  16e555b3f7654697a9f6d1656e208b47 : 
+ {'wsgi.errors': <_io.TextIOWrapper name='<stderr>' mode='w' encoding='utf-8'>, 
+  'wsgi.version': (1, 0), 
+  'wsgi.multithread': True, 
+  'wsgi.multiprocess': False, 
+  'wsgi.run_once': False, 
+  'wsgi.url_scheme': 'http', 
+  'REQUEST_METHOD': 'GET', 
+  'SCRIPT_NAME': '', 
+  'RAW_PATH_INFO': '/socket.io/', 
+  'PATH_INFO': '/socket.io/', 
+  'QUERY_STRING': 'EIO=4&transport=websocket', 
+  'CONTENT_TYPE': 'text/plain', 
+  'SERVER_PROTOCOL': 'HTTP/1.0', 
+  'SERVER_NAME': '127.0.0.1', 
+  'SERVER_PORT': '4567', 
+  'REMOTE_ADDR': '127.0.0.1', 
+  'REMOTE_PORT': '64215', 
+  'GATEWAY_INTERFACE': 'CGI/1.1', 
+  'headers_raw': (('User-Agent', 'websocket-sharp/1.0'), ('Upgrade', 'websocket'), ('Connection', 'Upgrade'), ('Host', '127.0.0.1:4567'),
+   ('Sec-WebSocket-Key', 'BVFdQtvzQMToRRFuDfPOJA=='), 
+   ('Sec-WebSocket-Version', '13')), 
+  'HTTP_USER_AGENT': 'websocket-sharp/1.0', 
+  'HTTP_UPGRADE': 'websocket', 
+  'HTTP_CONNECTION': 'Upgrade', 
+  'HTTP_HOST': '127.0.0.1:4567', 
+  'HTTP_SEC_WEBSOCKET_KEY': 'BVFdQtvzQMToRRFuDfPOJA==', 
+  'HTTP_SEC_WEBSOCKET_VERSION': '13', 
+  'wsgi.input': <eventlet.wsgi.Input object at 0x000002BA4359DA58>, 
+  'eventlet.input': <eventlet.wsgi.Input object at 0x000002BA4359DA58>,
+  'eventlet.posthooks': []}

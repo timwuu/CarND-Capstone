@@ -22,9 +22,8 @@ class AIController(object):
 
         if theta > 180.0:
             theta = theta - 360.0
-        else:
-            if theta < -180.0:
-                theta = theta + 360.0
+        elif theta < -180.0:
+            theta = theta + 360.0
 
         return theta
 
@@ -64,7 +63,7 @@ class AIController(object):
             accelBrakeSensitivity = AccelSensitivity
 
         #decide the actual amount of accel / brake input to achieve desired speed.
-        accel = numpy.clip((desiredSpeed - currentSpeed) * accelBrakeSensitivity, -1, 1)
+        accel = numpy.clip((desiredSpeed - currentSpeed) * accelBrakeSensitivity, -0.5, 0.5)
 
         #calculate the local - relative position of the target, to steer towards Vector3
         #localTarget = transform.InverseTransformPoint(offsetTargetPos);
