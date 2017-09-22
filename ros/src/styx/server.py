@@ -64,4 +64,5 @@ if __name__ == '__main__':
     app = socketio.Middleware(sio, app)
 
     # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
+    #    increase the backlog size to prevent losing control of the car
+    eventlet.wsgi.server(eventlet.listen(('', 4567),backlog=200), app)

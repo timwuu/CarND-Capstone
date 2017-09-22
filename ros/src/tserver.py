@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# 2017.09.23 timijk: 
+#       1. branch from tt_threading with backlog > 100.
+#       2. clean up codes and add the yaw controller.
+
 import csv
 import json
 import sys
@@ -17,139 +21,91 @@ import threading
 
 __path__ = [""]
 
-from waypoint_updater.path_planner_b import PathPlanner
-from twist_controller.ai_controller import AIController
+from waypoint_updater.path_planner import PathPlanner
 from twist_controller.pid import PID
+from twist_controller.yaw_controller import YawController
 
 y = None
 z = None
 yaw = None
 velocity = None
 x = None
-dbw_enable = None
+dbw_enable = False
 LOOKAHEAD_WPS = 100
 count = 0
 
-TARGET_SPEED = 30  # MPH
+cw_x = None
+cw_y = None
 
-SAMPLE_TIME = 0.5
-ACCEL_SENSITIVITY = 0.06
-speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
+steering = None
+throttle = None
+brake = None
+
+maps_x = []
+maps_y = []
 
 
 sio = socketio.Server( async_handlers=True, max_http_buffer_size=64000, async_mode='eventlet')
 app = Flask(__name__)
 
-maps_x = []
-maps_y = []
+#dbw_enable = False
 
-cw_x = None
-cw_y = None
-
-dbw_enable = False
+# ----- threading related -----
 data_rdy = False
 control_data_rdy = False
 
 pose_lock = threading.Lock()
 final_waypoint_lock = threading.Lock()
 
-control_feedback ="-- None --"
 
-pre_throttle_tag = 0
-pre_throttle_tag_t = 0
+# ----- control related -----
+TARGET_SPEED = 15  # MPH
 
+SAMPLE_TIME = 0.1
+ACCEL_SENSITIVITY = 0.06
+speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
-client_sid = None
+WHEEL_BASE = 2.8498      # 2.8498 meters Lincoln MKZ
+STEER_RATIO = 14.8       # steer angle : wheel angle
+MAX_LAT_ACCEL = 3.       # default 3.
+MAX_STEER_ANGLE = 4.0    # include both positive and negative sides (-4/+4) radians
 
-steering = None
-throttle = None
-brake = None
+STEER_SENSITIVITY = STEER_RATIO / MAX_STEER_ANGLE
 
-def netmon():
-    global client_sid, sio
+MIN_SPEED = 5.  # TODO: adjust
 
-    while True:
-        if client_sid is not None:
-            print('disconnet client', client_sid)
-            sio.disconnect(client_sid, namespace=None)
-            client_sid = None
-        time.sleep(0.25)    
-
-def worker():
-    global x, y, yaw
-    global count
-
-    while True:
-        print ('worker:', count)
-
-        for i in range(0,10000000):
-            pass
-
-        count = count + 1
-
-        time.sleep(2)
-    return
+yaw_controller = YawController(WHEEL_BASE, STEER_RATIO, MIN_SPEED, MAX_LAT_ACCEL, MAX_STEER_ANGLE)
 
 def display_parameters():
-
 
     while True:
 
         if dbw_enable and throttle is not None:
             global start_time
             delta_time = time.time() - start_time
-            print('{: .1f}\t<{: .2f} {: .2f} >\t({: .2f} )\t<{: .3f}\t{: .3f}\t{: .2f} >'.format(delta_time, x, y, yaw, steering, throttle, brake))
+            if steering > 0.0:
+                print('{: .1f}\t[{: .2f} {: .2f} ]\t<{: .2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, x, y, yaw, steering, throttle, brake))
+            else:
+                print('{: .1f}\t[{: .2f} {: .2f} ]\t {: .2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, x, y, yaw, steering, throttle, brake))
 
         time.sleep(0.5)
     pass
 
-def dbw_control3():  # 5Hz
-    global dbw_enable
-    global steering, throttle, brake
-
-    global data_rdy, control_data_rdy
-
-    steering= 2
-
-    while True:
-        if dbw_enable:
-            if data_rdy:
-                control_data_rdy = False
-
-                if steering > 0.19:
-                    steering = -2.0
-                else:
-                    steering = 2.0
-
-                throttle = 0.05
-                brake = 0.0
-
-                control_data_rdy = True
-
-                data_rdy = False
-
-        time.sleep(2.0)
-
-    pass
-
 def find_final_waypoint():  # 0.5Hz
     global dbw_enable
-    global steering, throttle, brake
 
-    global data_rdy, control_data_rdy
-
-    fq = 1.0/0.5 #every 2 seconds
+    slptime = 2.0 #every 2 seconds
 
     while True:
         if dbw_enable:
             final_waypoint_lock.acquire()
             find_path()
             final_waypoint_lock.release()
-        time.sleep(fq)
+        time.sleep(slptime)
     pass
 
-def dbw_control():  # 2Hz
-    fq = 0.5
+def dbw_control():
+    slptime = SAMPLE_TIME
 
     global dbw_enable
     global steering, throttle, brake
@@ -185,7 +141,7 @@ def dbw_control():  # 2Hz
 
                 data_rdy = False
 
-        time.sleep(fq)
+        time.sleep(slptime)
 
     pass
 
@@ -225,7 +181,7 @@ def telemetry(sid, data):
 
     if dbw_enable:
         count = count + 1
-        if count == 25:
+        if count == 2:
             #if control_data_rdy:
             send_control()
             #    control_data_rdy = False
@@ -235,28 +191,6 @@ def telemetry(sid, data):
 
 @sio.on('control') #25Hz
 def control(sid, data):
-    global control_feedback
-    control_feedback = data
-
-    global pre_throttle_tag, pre_throttle_tag_t
-
-    global client_sid
-
-    throttle = int(data['throttle']*10000)  #.349603
-    if throttle > 100 and throttle == pre_throttle_tag:
-
-        if pre_throttle_tag_t == 0:
-            pre_throttle_tag_t = time.time()   # start timer
-        else:    
-            if time.time() - pre_throttle_tag_t > 2.5:  #2.5 seconds
-                print(time.strftime('%X'), '-- possibly bad TCP/IP connection --')
-                pre_throttle_tag_t = 0
-                #disconnect the client in the monitor
-                client_sid = sid
-    else:
-        pre_throttle_tag_t = 0
-
-    pre_throttle_tag = throttle
     pass
 
 @sio.on('obstacle')
@@ -281,13 +215,9 @@ def image(sid, data):
 
 def send_control():
     global steering, throttle, brake
-    global client_sid
 
     if throttle is None:
         return
-
-    #if client_sid is not None:
-    #    sio.emit('dummy','dummy')
 
     sio.emit('steer', data={'steering_angle': str(steering)})
 
@@ -327,10 +257,7 @@ def find_path():
     car_speed = velocity
     pose_lock.release()
 
-    #cw = closest waypoints
     cw_x, cw_y = pp.getNextWaypoints(car_x, car_y, theta, LOOKAHEAD_WPS, maps_x, maps_y)
-
-    #cw_x, cw_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x, cw_y)
 
     pass
 
@@ -347,20 +274,10 @@ def find_actuation():
     current_y = y
     current_yaw = yaw
 
-    if current_y > 2800.0:
-       desiredSpeed = 30.0
-
     dx = sp_x[1]-current_x
     dy = sp_y[1]-current_y
     dist = math.sqrt( dx*dx+dy*dy)
-
-    if dist> 8.0:
-        desiredSpeed = 5.0 
-
-    controller = AIController()
   
-    #throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
-
     brake = 0.0
 
     global SAMPLE_TIME
@@ -370,29 +287,61 @@ def find_actuation():
     if throttle > 0.01:
         throttle = throttle + (random.random()-0.5)/100.
 
-    steering = controller.steering(sp_x, sp_y, current_x, current_y, current_yaw) 
+    angular_velocity = calcAngularVelocity(sp_x, sp_y, current_yaw)  #radians
+    # normalized steering : -1/+1
+    #   normalized steering = steer_angle * 2 / MAX_STEER_ANGLE
+    #   steer_angle = wheel_angle * STEER_RATIO
+    #   normalized steering = wheel_angle * { STEER_RATIO * 2 / MAX_STEER_ANGLE }
+    #   STEER_SENSITIVITY = STEER_RATIO * 2 / MAX_STEER_ANGLE
+    #
+    #   normalized steerting = wheel_angle * STEER_SENSITIVITY
+    steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed) * STEER_SENSITIVITY
 
-    if math.fabs( steering) > 0.4:
-        if currentSpeed > 20:
-            brake = 5000.0
-    elif math.fabs( steering) > 0.3:
-        throttle = throttle * 0.2
-    elif math.fabs( steering) > 0.3:
-        throttle = throttle * 0.2
-    elif math.fabs( steering) > 0.2:
-        throttle = throttle * 0.3
-
-    if dist > 10.0:
-        print(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",dist,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-
-    #logging.info(current_x,"\t",current_y,"\t",target_x,"\t",target_y,"\t",current_yaw,"\t",steering,"\t",throttle,"\t",brake)
-    
     pass
 
-if __name__ == '__main__':
+def normalize_angle(theta):
 
-    #th = threading.Thread(target=worker)
-    #th.start()
+    if theta > 180.0:
+        theta = theta - 360.0
+    else:
+        if theta < -180.0:
+            theta = theta + 360.0
+
+    return theta
+
+    #radians
+def calcAngularVelocity(cw_x, cw_y, current_yaw):
+    global velocity
+
+    current_speed_mps = velocity * 0.44  # to mps
+
+    # target_angle * current_speed / distance between 5th point and the current point (~ 15m,
+    # we use 90m spline and divides it into 30 segments)
+
+    # theta: the tagency of the 5th point[6] from the current car position[1]
+    x = cw_x[7] - cw_x[5]
+    y = cw_y[7] - cw_y[5]
+
+    theta = normalize_angle(math.degrees(math.atan2(y, x)) - current_yaw)
+
+    # phi: lookahead at the 5th point[6] from the current car position[1] and its angle
+    x = cw_x[6] - cw_x[1]
+    y = cw_y[6] - cw_y[1]
+
+    phi = normalize_angle(math.degrees(math.atan2(y, x)) - current_yaw)
+
+    targetAngle =  theta * 0.7 + phi * 0.3
+
+    dist = math.sqrt( math.pow(cw_x[6]-cw_x[1],2.0)+math.pow(cw_y[6]-cw_y[1],2.0))
+
+    #print("target angle is: {: f} lookahead distance: {: f}".format( targetAngle, dist))
+
+    angular_velocity = math.radians(targetAngle) * current_speed_mps / dist
+
+    return angular_velocity
+
+
+if __name__ == '__main__':
 
     # start find_final_waypoint thread
     th = threading.Thread(target=find_final_waypoint)
@@ -400,9 +349,6 @@ if __name__ == '__main__':
 
     th2 = threading.Thread(target=dbw_control)
     th2.start()
-
-    th3 = threading.Thread(target=netmon)
-    th3.start()
 
     th4 = threading.Thread(target=display_parameters)
     th4.start()

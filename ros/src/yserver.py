@@ -26,7 +26,7 @@ yaw = None
 velocity = None
 x = None
 dbw_enable = None
-LOOKAHEAD_WPS = 200
+LOOKAHEAD_WPS = 100
 count = 0
 
 ##from bridge import Bridge
@@ -46,7 +46,7 @@ ACCEL_SENSITIVITY = 0.06
 #speed_controller = PID( ACCEL_SENSITIVITY*2.5, 0.006, 1.25, mn=-0.5, mx=0.5)
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
-TARGET_SPEED = 15.0 #MPH default: 10
+TARGET_SPEED = 30.0 #MPH default: 10
 
 WHEEL_BASE = 2.8498      # 2.8498 meters Lincoln MKZ
 STEER_RATIO = 14.8       # steer angle : wheel angle
@@ -91,10 +91,7 @@ def telemetry(sid, data):
     global dbw_enable, count
     global steering, throttle, brake
 
-
     extract_data(data)
-
-
 
     if dbw_enable:
         count = count + 1
@@ -216,12 +213,6 @@ def find_actuation():
     if dist> 8.0:
         desiredSpeed = 5.0 
 
-
-
-    controller = AIController()
-  
-    #throttle, brake, steering = controller.control(desiredSpeed, currentSpeed, target_x, target_y, current_x, current_y, current_yaw)
-
     brake = 0.0
 
     global SAMPLE_TIME
@@ -240,14 +231,14 @@ def find_actuation():
     delta_time = time.time() - start_time
 
     if steering > 0.:
-        print('{: .1f}\t[{: .2f} {: .2f} ]\t{: .2f}\t({: .2f} )\t[<{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time,
+        print('{: .1f}\t[{: .2f} {: .2f} ]\t{: .2f}\t<{: 6.2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time,
                                                                                                        current_x,
                                                                                                        current_y, dist,
                                                                                                        current_yaw,
                                                                                                        steering,
                                                                                                        throttle, brake))
     else:
-        print('{: .1f}\t[{: .2f} {: .2f} ]\t{: .2f}\t({: .2f} )\t[>{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, current_x, current_y, dist,current_yaw,steering,throttle,brake))
+        print('{: .1f}\t[{: .2f} {: .2f} ]\t{: .2f}\t {: 6.2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, current_x, current_y, dist,current_yaw,steering,throttle,brake))
       
     pass
 
@@ -301,5 +292,6 @@ if __name__ == '__main__':
     print("start WSGI server!")
 
     # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)
-    #eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 4567)), app)
+    #    backlog >= 100 (performance issues)
+    eventlet.wsgi.server(eventlet.listen(('', 4567), backlog=100), app)
+    
