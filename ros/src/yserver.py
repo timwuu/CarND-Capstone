@@ -42,9 +42,16 @@ dbw_enable = False
 
 SAMPLE_TIME = 0.5
 ACCEL_SENSITIVITY = 0.06
-speed_controller = PID( ACCEL_SENSITIVITY*2.5, 0.006, 1.25, mn=-0.5, mx=0.5)
+speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
-TARGET_SPEED = 40.0 #MPH
+WHEEL_BASE = 2.8498
+STEER_RATIO = 14.8  # STEER/WHEEL
+MAX_LAT_ACCEL = 3.0
+MAX_STEER_ANGLE =  8.  # RAD
+
+yaw_controller = YawController( WHEEL_BASE, STEER_RATIO, min_speed, MAX_LAT_ACCEL, MAX_STEER_ANGLE)
+
+TARGET_SPEED = 35.0 #MPH
 
 #logging.basicConfig(filename='example.log', level=logging.DEBUG)
 
