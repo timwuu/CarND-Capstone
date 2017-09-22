@@ -150,7 +150,7 @@ def find_final_waypoint():  # 0.5Hz
     pass
 
 def dbw_control():  # 2Hz
-    fq = 0.65
+    fq = 0.5
 
     global dbw_enable
     global steering, throttle, brake
@@ -304,8 +304,10 @@ def send_control():
 
     if brake > 0.5:
         sio.emit('brake', data={'brake': str(brake*20.0)})
+        sio.emit('throttle', data={'throttle': str(0.0)})
     else:
         sio.emit('throttle', data={'throttle': str(throttle)})
+        #sio.emit('brake', data={'brake': str(0.1)})
     pass
 
 def extract_data(data):
@@ -422,4 +424,4 @@ if __name__ == '__main__':
     print("start WSGI server!")
 
     # deploy as an eventlet WSGI server
-    eventlet.wsgi.server(eventlet.listen(('', 4567)), app, max_http_version='HTTP/1.0')
+    eventlet.wsgi.server(eventlet.listen(('', 4567)), app)

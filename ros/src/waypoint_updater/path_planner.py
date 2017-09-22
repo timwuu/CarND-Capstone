@@ -4,7 +4,7 @@ import numpy as np
 import csv
 from scipy import interpolate
 
-
+LANE = 0   # left lane: +1, right lane: -1
 
 class PathPlanner(object):
     def __init__(self):
@@ -161,9 +161,9 @@ class PathPlanner(object):
             ptsy.append(ref_y)
         '''
 
-
+        global LANE
         # In Frenet add evenly 30m spaced points ahead of the starting reference
-        lane = -1   # left lane: +1, right lane: -1
+        lane = LANE   # left lane: +1, right lane: -1
         road_width = 4
         middle_of_lane = 0
         #next_wp0 = self.getXY(car_s + 30, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y)
@@ -282,21 +282,21 @@ class PathPlanner(object):
     # int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
     def ClosestWaypoint(self, x, y, maps_x, maps_y):
 
-        closestLen = 100000;  # large number
-        closestWaypoint = -1; # -1 if point not found
+        closestLen = 100000  # large number
+        closestWaypoint = -1 # -1 if point not found
 
         for i in range(len(maps_x)-1, 0, -1):
             map_x = maps_x[i]
             map_y = maps_y[i]
-            dist = self.distance(x, y, map_x, map_y);
+            dist = self.distance(x, y, map_x, map_y)
             if (dist < closestLen):
                 closestLen = dist
                 closestWaypoint = i
 
-        return closestWaypoint;  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
+        return closestWaypoint  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
 
     def NextWaypoint(self, x, y, theta, maps_x, maps_y):
-        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y);
+        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y)
         map_x = maps_x[closestWaypoint]
         map_y = maps_y[closestWaypoint]
 
@@ -379,14 +379,14 @@ class PathPlanner(object):
         centerToRef = self.distance(center_x, center_y, proj_x, proj_y)
 
         if (centerToPos <= centerToRef):
-            frenet_d *= -1;
+            frenet_d *= -1
 
         # calculate s value
-        frenet_s = 0;
+        frenet_s = 0
         for i in range(0, prev_wp):
             frenet_s += self.distance(maps_x[i], maps_y[i], maps_x[i + 1], maps_y[i + 1])
 
-        frenet_s += self.distance(0, 0, proj_x, proj_y);
+        frenet_s += self.distance(0, 0, proj_x, proj_y)
 
         return frenet_s, frenet_d
 
