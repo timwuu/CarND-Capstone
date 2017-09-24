@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+'''
+# LOG:
+    2017.09.24  Add MapZone
+
+'''
+
 import csv
 import json
 import sys
@@ -15,8 +21,15 @@ from flask import Flask, render_template
 
 __path__ = [""]
 
+# sys.path.insert(0, os.path.realpath('./../waypoint_updater/'))
+# from path_planner import PathPlanner
+
+# sys.path.insert(0, os.path.realpath('./../twist_controller/'))
+# from pid import PID
+# from yaw_controller import YawController
+
 from waypoint_updater.path_planner import PathPlanner
-from twist_controller.ai_controller import AIController
+from waypoint_updater.map_zone import MapZone
 from twist_controller.pid import PID
 from twist_controller.yaw_controller import YawController
 
@@ -39,6 +52,8 @@ msgs = {}
 maps_x = []
 maps_y = []
 
+map_index = {}
+
 dbw_enable = False
 
 SAMPLE_TIME = 0.5
@@ -46,7 +61,7 @@ ACCEL_SENSITIVITY = 0.06
 #speed_controller = PID( ACCEL_SENSITIVITY*2.5, 0.006, 1.25, mn=-0.5, mx=0.5)
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
-TARGET_SPEED = 30.0 #MPH default: 10
+TARGET_SPEED = 20.0 #MPH default: 10
 
 WHEEL_BASE = 2.8498      # 2.8498 meters Lincoln MKZ
 STEER_RATIO = 14.8       # steer angle : wheel angle
@@ -59,6 +74,7 @@ MIN_SPEED = 5.  # TODO: adjust
 
 yaw_controller = YawController(WHEEL_BASE, STEER_RATIO, MIN_SPEED, MAX_LAT_ACCEL, MAX_STEER_ANGLE)
 
+map_zone = MapZone()
 
 #logging.basicConfig(filename='example.log', level=logging.DEBUG)
 
@@ -76,8 +92,11 @@ def connect(sid, environ):
     #print("maps_x[len(maps_x)-1]: ", maps_x[len(maps_x)-1])
     #print("maps_y[len(maps_y)-1]: ", maps_y[len(maps_y)-1])
     #print("len(maps):",len(maps))
-    pp = PathPlanner()
+    pp = PathPlanner( map_zone)
     maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
+
+    #create map zones
+    map_zone.zoning( maps_x, maps_y)
 
 def send(topic, data):
     s = 1

@@ -3,6 +3,10 @@
 # 2017.09.23 timijk: 
 #       1. branch from tt_threading with backlog > 100.
 #       2. clean up codes and add the yaw controller.
+#       3. convert to radians
+#
+# 2017.09.24 timijk:
+#       1. add MapZone feature
 
 import csv
 import json
@@ -22,6 +26,7 @@ import threading
 __path__ = [""]
 
 from waypoint_updater.path_planner import PathPlanner
+from waypoint_updater.map_zone import MapZone
 from twist_controller.pid import PID
 from twist_controller.yaw_controller import YawController
 
@@ -59,7 +64,7 @@ final_waypoint_lock = threading.Lock()
 
 
 # ----- control related -----
-TARGET_SPEED = 15  # MPH
+TARGET_SPEED = 20  # MPH
 
 SAMPLE_TIME = 0.1
 ACCEL_SENSITIVITY = 0.06
@@ -75,6 +80,9 @@ STEER_SENSITIVITY = STEER_RATIO / MAX_STEER_ANGLE
 MIN_SPEED = 5.  # TODO: adjust
 
 yaw_controller = YawController(WHEEL_BASE, STEER_RATIO, MIN_SPEED, MAX_LAT_ACCEL, MAX_STEER_ANGLE)
+
+# ------ MapZone ------
+map_zone = MapZone()
 
 def display_parameters():
 
@@ -156,8 +164,11 @@ def connect(sid, environ):
         for row in maps_reader:
             maps_x.append(float(row[0]))
             maps_y.append(float(row[1]))
-    pp = PathPlanner()
+    pp = PathPlanner( map_zone)
     maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
+
+    #create map zones
+    map_zone.zoning( maps_x, maps_y)
 
 @sio.on('telemetry') #25~35Hz
 def telemetry(sid, data):
@@ -239,10 +250,14 @@ def extract_data(data):
     x = float(data['x'])
 
     #yaw data cleansing
-    if yaw > 360.0:
+    if yaw > 180.0:
         yaw = yaw - 360.0
-    if yaw < 0.0:
-        yaw = yaw + 360.0    
+    if yaw < -180.0:
+        yaw = yaw + 360.0
+
+    # convert to -pi/+pi
+    yaw = math.radians(yaw)   
+
     pass
 
 def find_path():
@@ -301,11 +316,11 @@ def find_actuation():
 
 def normalize_angle(theta):
 
-    if theta > 180.0:
-        theta = theta - 360.0
+    if theta > math.pi:
+        theta = theta - 2.0*math.pi
     else:
-        if theta < -180.0:
-            theta = theta + 360.0
+        if theta < -math.pi:
+            theta = theta + 2.0*math.pi
 
     return theta
 
@@ -322,13 +337,14 @@ def calcAngularVelocity(cw_x, cw_y, current_yaw):
     x = cw_x[7] - cw_x[5]
     y = cw_y[7] - cw_y[5]
 
-    theta = normalize_angle(math.degrees(math.atan2(y, x)) - current_yaw)
+    #theta = normalize_angle(math.degrees(math.atan2(y, x)) - current_yaw)
+    theta = normalize_angle(math.atan2(y, x) - current_yaw)
 
     # phi: lookahead at the 5th point[6] from the current car position[1] and its angle
     x = cw_x[6] - cw_x[1]
     y = cw_y[6] - cw_y[1]
 
-    phi = normalize_angle(math.degrees(math.atan2(y, x)) - current_yaw)
+    phi = normalize_angle(math.atan2(y, x) - current_yaw)
 
     targetAngle =  theta * 0.7 + phi * 0.3
 
@@ -336,7 +352,8 @@ def calcAngularVelocity(cw_x, cw_y, current_yaw):
 
     #print("target angle is: {: f} lookahead distance: {: f}".format( targetAngle, dist))
 
-    angular_velocity = math.radians(targetAngle) * current_speed_mps / dist
+    #angular_velocity = math.radians(targetAngle) * current_speed_mps / dist
+    angular_velocity = targetAngle * current_speed_mps / dist
 
     return angular_velocity
 

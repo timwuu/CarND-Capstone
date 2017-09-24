@@ -4,16 +4,20 @@ import numpy as np
 import csv
 from scipy import interpolate
 
+from waypoint_updater.map_zone import MapZone
+
 LANE = 0   # left lane: +1, right lane: -1
 
 class PathPlanner(object):
-    def __init__(self):
+    def __init__(self, map_zone = None):
         self.waypoints = None
         self.current_pose = None
         self.current_speed = None
 
         self.frenet_coordinate = None
         self.final_waypoints = None
+
+        self.map_zone = map_zone
 
     def path_planning(self, waypoints_size, car_x, car_y, theta, car_speed, maps_x, maps_y):
 
@@ -127,7 +131,7 @@ class PathPlanner(object):
         # either we will reference the starting point as where the car is or at the previous path's end point
         ref_x = car_x
         ref_y = car_y
-        ref_yaw = math.radians(theta)
+        ref_yaw = theta
 
         # if previous size is almost empty, use the car as starting reference
         '''
@@ -280,23 +284,43 @@ class PathPlanner(object):
 
 
     # int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
-    def ClosestWaypoint(self, x, y, maps_x, maps_y):
+    def ClosestWaypoint(self, x, y, maps_x, maps_y, map_zone=None):
+
+        elems = map_zone.getZoneNeighborElements( x, y) if map_zone is not None else []
 
         closestLen = 100000  # large number
         closestWaypoint = -1 # -1 if point not found
 
-        for i in range(len(maps_x)-1, 0, -1):
-            map_x = maps_x[i]
-            map_y = maps_y[i]
-            dist = self.distance(x, y, map_x, map_y)
+        if len(elems)==0:
+            elems = range(len(maps_x)-1, 0, -1)
+
+        #print('elems:{}'.format(elems))
+
+        for i in elems:
+            dist = self.distance(x, y, maps_x[i], maps_y[i])
             if (dist < closestLen):
                 closestLen = dist
                 closestWaypoint = i
 
+        return closestWaypoint
+
+        if len(elems)>0:
+            for i in elems:
+                dist = self.distance(x, y, maps_x[i], maps_y[i])
+                if (dist < closestLen):
+                    closestLen = dist
+                    closestWaypoint = i
+        else:   
+            for i in range(len(maps_x)-1, 0, -1):
+                dist = self.distance(x, y, maps_x[i], maps_y[i])
+                if (dist < closestLen):
+                    closestLen = dist
+                    closestWaypoint = i
+
         return closestWaypoint  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
 
-    def NextWaypoint(self, x, y, theta, maps_x, maps_y):
-        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y)
+    def NextWaypoint(self, x, y, theta, maps_x, maps_y, map_zone=None):
+        closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y, map_zone)
         map_x = maps_x[closestWaypoint]
         map_y = maps_y[closestWaypoint]
 
@@ -309,7 +333,7 @@ class PathPlanner(object):
         return closestWaypoint
 
     def getNextWaypoints(self, x, y, theta, wp_size, maps_x, maps_y):
-        nextwaypoint = self.NextWaypoint(x, y, theta, maps_x, maps_y)
+        nextwaypoint = self.NextWaypoint(x, y, theta, maps_x, maps_y, self.map_zone)
         #### TODO: Assuming this is a loop without overlapping waypoints!
         nextWaypoints_x = []
         nextWaypoints_y = []
@@ -334,7 +358,7 @@ class PathPlanner(object):
             search_size = 200  #number of points to search
             map_size = len(maps_x)
             begin_search = map_size - search_size
-            start_duplicate = self.ClosestWaypoint(maps_x[0], maps_y[0], maps_x[begin_search:map_size], maps_y[begin_search:map_size])
+            start_duplicate = self.ClosestWaypoint(maps_x[0], maps_y[0], maps_x[begin_search:map_size], maps_y[begin_search:map_size], self.map_zone)
             start_duplicate = begin_search + start_duplicate
             print("origin point: ", maps_x[0], maps_y[0])
             print("duplicate point:", maps_x[start_duplicate], maps_y[start_duplicate])
@@ -345,14 +369,9 @@ class PathPlanner(object):
     # vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
     def getFrenet(self, x, y, theta, maps_x, maps_y):
 
-        next_wp = self.NextWaypoint(x, y, theta, maps_x, maps_y)
+        next_wp = max( self.NextWaypoint(x, y, theta, maps_x, maps_y), 1)
 
         prev_wp = next_wp - 1
-        if (next_wp == 0):
-            prev_wp = maps_x.size() - 1
-
-        if next_wp >= len(maps_x):
-            pass
 
         try:
             n_x = maps_x[next_wp] - maps_x[prev_wp]
