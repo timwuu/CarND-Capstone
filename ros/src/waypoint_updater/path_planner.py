@@ -304,21 +304,6 @@ class PathPlanner(object):
 
         return closestWaypoint
 
-        if len(elems)>0:
-            for i in elems:
-                dist = self.distance(x, y, maps_x[i], maps_y[i])
-                if (dist < closestLen):
-                    closestLen = dist
-                    closestWaypoint = i
-        else:   
-            for i in range(len(maps_x)-1, 0, -1):
-                dist = self.distance(x, y, maps_x[i], maps_y[i])
-                if (dist < closestLen):
-                    closestLen = dist
-                    closestWaypoint = i
-
-        return closestWaypoint  # int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
-
     def NextWaypoint(self, x, y, theta, maps_x, maps_y, map_zone=None):
         closestWaypoint = self.ClosestWaypoint(x, y, maps_x, maps_y, map_zone)
         map_x = maps_x[closestWaypoint]
