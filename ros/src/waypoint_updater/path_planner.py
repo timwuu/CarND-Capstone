@@ -6,7 +6,7 @@ from scipy import interpolate
 
 from waypoint_updater.map_zone import MapZone
 
-LANE = 0   # left lane: +1, right lane: -1
+LANE = -1   # left lane: -1, right lane: +1
 
 class PathPlanner(object):
     def __init__(self, map_zone = None):
@@ -375,15 +375,25 @@ class PathPlanner(object):
 
         frenet_d = self.distance(x_x, x_y, proj_x, proj_y)
 
-        # see if d value is positive or negative by comparing it to a center point
+        # see if d value is positive or negative by comparing it to the two points
+        # that locate on each side of the track
 
-        center_x = 1000 - maps_x[prev_wp]
-        center_y = 2000 - maps_y[prev_wp]
-        centerToPos = self.distance(center_x, center_y, x_x, x_y)
-        centerToRef = self.distance(center_x, center_y, proj_x, proj_y)
+# '''
+#         point_right_x = n_y
+#         point_right_y = - n_x
 
-        if (centerToPos <= centerToRef):
-            frenet_d *= -1
+#         point_left_x = -n_y
+#         point_left_y = n_x
+
+#         dist_right_sq = (x_x - point_right_x) ** 2.0 + (x_y - point_right_y) ** 2.0
+#         dist_left_sq = (x_x - point_left_x) ** 2.0 + (x_y - point_left_y) ** 2.0
+
+#         if dist_right_sq < dist_left_sq:  # positive means d is on the left side
+#             frenet_d = -frenet_d
+# '''
+
+        if (x_y*n_x < x_x*n_y): # use the inner product to decide
+            frenet_d = -frenet_d
 
         # calculate s value
         frenet_s = 0
