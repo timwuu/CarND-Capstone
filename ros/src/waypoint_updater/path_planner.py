@@ -291,7 +291,7 @@ class PathPlanner(object):
         closestLen = 100000  # large number
         closestWaypoint = -1 # -1 if point not found
 
-        if len(elems)==0:
+        if elems ==[]:
             elems = range(len(maps_x)-1, 0, -1)
 
         #print('elems:{}'.format(elems))
