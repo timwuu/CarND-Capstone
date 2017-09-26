@@ -43,6 +43,8 @@ class Bridge(object):
         self.angular_vel = 0.
         self.bridge = CvBridge()
 
+        self.prev_time = None
+
         self.callbacks = {
             '/vehicle/steering_cmd': self.callback_steering,
             '/vehicle/throttle_cmd': self.callback_throttle,

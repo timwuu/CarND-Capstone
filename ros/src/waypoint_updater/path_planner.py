@@ -17,10 +17,11 @@ class PathPlanner(object):
         self.frenet_coordinate = None
         self.final_waypoints = None
 
+        self.maps_delta_s = None
+
         self.map_zone = map_zone
 
     def path_planning(self, waypoints_size, car_x, car_y, theta, car_speed, maps_x, maps_y):
-
         # find the next N points
 
         # Main car's localization Data
@@ -272,10 +273,17 @@ class PathPlanner(object):
         map_s_accu = 0.0
         for i in range(1, len(maps_x)):
             #TODO: delete map_s, map_d = self.getFrenet(maps_x[i], maps_y[i], theta, maps_x, maps_y)
-            map_s_accu = map_s_accu + self.distance( maps_x[i-1],maps_y[i-1],maps_x[i],maps_y[i])
+            map_s_accu = map_s_accu + self.maps_delta_s[i]
             maps_s.append(map_s_accu)
             maps_d.append(0.0)
         return maps_s, maps_d
+
+    def findMapDeltaS(self, maps_x, maps_y):
+        self.maps_delta_s = [0]
+        for i in range(1, len(maps_x)):
+             delta = self.distance(maps_x[i-1],maps_y[i-1],maps_x[i],maps_y[i])
+             self.maps_delta_s.append(delta)
+        return 
 
     # double distance(double x1, double y1, double x2, double y2)
     def distance(self, x1, y1, x2, y2):
@@ -398,7 +406,7 @@ class PathPlanner(object):
         # calculate s value
         frenet_s = 0
         for i in range(0, prev_wp):
-            frenet_s += self.distance(maps_x[i], maps_y[i], maps_x[i + 1], maps_y[i + 1])
+            frenet_s += self.maps_delta_s[i]
 
         frenet_s += self.distance(0, 0, proj_x, proj_y)
 

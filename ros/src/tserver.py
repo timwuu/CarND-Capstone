@@ -22,6 +22,7 @@ import random
 from flask import Flask, render_template
 
 import threading
+import copy
 
 __path__ = [""]
 
@@ -29,6 +30,7 @@ from waypoint_updater.path_planner import PathPlanner
 from waypoint_updater.map_zone import MapZone
 from twist_controller.pid import PID
 from twist_controller.yaw_controller import YawController
+from twist_controller.lowpass import LowPassFilter
 
 y = None
 z = None
@@ -49,6 +51,9 @@ brake = None
 maps_x = []
 maps_y = []
 
+time_path_planning = 0.0
+time_find_path = 0.0
+
 
 sio = socketio.Server( async_handlers=True, max_http_buffer_size=64000, async_mode='eventlet')
 app = Flask(__name__)
@@ -62,11 +67,12 @@ control_data_rdy = False
 pose_lock = threading.Lock()
 final_waypoint_lock = threading.Lock()
 
+final_waypoint_updated = None
 
 # ----- control related -----
-TARGET_SPEED = 20  # MPH
+TARGET_SPEED = 30  # MPH
 
-SAMPLE_TIME = 0.1
+SAMPLE_TIME = 0.1  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
@@ -81,6 +87,8 @@ MIN_SPEED = 5.  # TODO: adjust
 
 yaw_controller = YawController(WHEEL_BASE, STEER_RATIO, MIN_SPEED, MAX_LAT_ACCEL, MAX_STEER_ANGLE)
 
+steering_LPF = LowPassFilter(8.0,2.0)
+
 # ------ MapZone ------
 map_zone = MapZone()
 
@@ -89,14 +97,15 @@ def display_parameters():
     while True:
 
         if dbw_enable and throttle is not None:
-            global start_time
             delta_time = time.time() - start_time
             if steering > 0.0:
-                print('{: .1f}\t[{: .2f} {: .2f} ]\t<{: .2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, x, y, yaw, steering, throttle, brake))
+                fmt_string = '{: .1f} {:.3f} {:.3f}\t[{: .2f} {: .2f} ]\t<{: .2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'
             else:
-                print('{: .1f}\t[{: .2f} {: .2f} ]\t {: .2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'.format(delta_time, x, y, yaw, steering, throttle, brake))
+                fmt_string = '{: .1f} {:.3f} {:.3f}\t[{: .2f} {: .2f} ]\t {: .2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'
 
-        time.sleep(0.5)
+            print(fmt_string.format(delta_time, time_find_path*1000.0, time_path_planning*1000.0, x, y, yaw, steering, throttle, brake))
+
+        time.sleep(2.5)
     pass
 
 def find_final_waypoint():  # 0.5Hz
@@ -104,11 +113,17 @@ def find_final_waypoint():  # 0.5Hz
 
     slptime = 2.0 #every 2 seconds
 
+    global time_find_path, final_waypoint_updated
+
     while True:
         if dbw_enable:
+            time_find_path_ = time.time()
             final_waypoint_lock.acquire()
             find_path()
             final_waypoint_lock.release()
+            time_find_path = time.time() - time_find_path_
+            final_waypoint_updated = True
+
         time.sleep(slptime)
     pass
 
@@ -124,9 +139,13 @@ def dbw_control():
     global cw_x, cw_y
     global sp_x, sp_y
 
+    global time_path_planning
+    global final_waypoint_updated
+
     while True:
         if dbw_enable:
-            if data_rdy and cw_x is not None:
+            if data_rdy and final_waypoint_updated is not None:
+                time_path_planning_ = time.time()
                 control_data_rdy = False
 
                 #get the current car position and the yaw angle, the speed
@@ -136,9 +155,23 @@ def dbw_control():
 
                 car_speed = velocity
 
-                final_waypoint_lock.acquire()
-                sp_x, sp_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x, cw_y)
-                final_waypoint_lock.release()
+                if final_waypoint_updated:
+                    final_waypoint_lock.acquire()
+                    cw_x_copy = copy.deepcopy(cw_x)
+                    cw_y_copy = copy.deepcopy(cw_y)
+                    final_waypoint_lock.release()
+                    final_waypoint_updated = False            
+                    pp.findMapDeltaS( cw_x_copy, cw_y_copy)
+
+                idx = ClosestWaypoint(car_x, car_y, cw_x_copy, cw_y_copy)
+                
+                if idx > 1:
+                    cw_x_copy = cw_x_copy[idx-1:len(cw_x_copy)]
+                    cw_y_copy = cw_y_copy[idx-1:len(cw_y_copy)]
+                    pp.maps_delta_s = pp.maps_delta_s[idx-1:len(pp.maps_delta_s)]
+                    pp.maps_delta_s[0] = 0.0
+
+                sp_x, sp_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x_copy, cw_y_copy)
 
                 find_actuation()
 
@@ -149,15 +182,33 @@ def dbw_control():
 
                 data_rdy = False
 
+                time_path_planning = time.time() - time_path_planning_
         time.sleep(slptime)
 
     pass
+
+def ClosestWaypoint( x, y, maps_x, maps_y):
+
+    closestLen_sq = 10000000.0;  # large number
+    closestWaypoint = -1; # -1 if point not found
+
+    for i in range(len(maps_x)-1, 0, -1):
+        dist = distance_sq(x, y, maps_x[i], maps_y[i])
+        if (dist < closestLen_sq):
+            closestLen_sq = dist
+            closestWaypoint = i
+
+    return closestWaypoint + 1   
+
+def distance_sq( x1, y1, x2, y2):
+    return (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
 
 @sio.on('connect')
 def connect(sid, environ):
     print("connect ", sid, ':', environ)
     global maps_x, maps_y, pp
-    with open('./../../data/sim_waypoints.csv', 'rt') as csvfile:
+#    with open('./../../data/sim_waypoints.csv', 'rt') as csvfile:
+    with open('./../../data/wp_yaw_const.txt', 'rt') as csvfile:
         maps_x = []
         maps_y = []
         maps_reader = csv.reader(csvfile, delimiter=',')
@@ -210,7 +261,7 @@ def obstacle(sid, data):
     pass
 
 @sio.on('lidar')
-def obstacle(sid, data):
+def lidar(sid, data):
     #print("lidar",data)
     pass
 
@@ -312,6 +363,8 @@ def find_actuation():
     #   normalized steerting = wheel_angle * STEER_SENSITIVITY
     steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed) * STEER_SENSITIVITY
 
+    steering = steering_LPF.filt(steering)
+
     pass
 
 def normalize_angle(theta):
@@ -346,7 +399,7 @@ def calcAngularVelocity(cw_x, cw_y, current_yaw):
 
     phi = normalize_angle(math.atan2(y, x) - current_yaw)
 
-    targetAngle =  theta * 0.7 + phi * 0.3
+    targetAngle =  theta * 0.5 + phi * 0.5
 
     dist = math.sqrt( math.pow(cw_x[6]-cw_x[1],2.0)+math.pow(cw_y[6]-cw_y[1],2.0))
 
