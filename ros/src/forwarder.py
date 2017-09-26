@@ -14,20 +14,11 @@ def closed_callback():
 
 def forward_c(source, dest, cb=lambda: None):
     """Forwards bytes unidirectionally from source to dest"""
-    prv_d=''
     while True:
         d = source.recv(32384)
         if d == '':
             cb()
             break
-        ln = len(d)
-        if ln > 32000:
-            continue
-            #print( time.strftime('%X'),' c:',len(d))
-            if len(prv_d) < 32000:
-                print(prv_d)
-            print(d[0:31])
-        prv_d=d    
         dest.sendall(d)
 
 def forward_s(source, dest, cb=lambda: None):

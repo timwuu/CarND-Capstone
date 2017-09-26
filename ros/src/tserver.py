@@ -32,13 +32,15 @@ from twist_controller.pid import PID
 from twist_controller.yaw_controller import YawController
 from twist_controller.lowpass import LowPassFilter
 
+import logging
+
 y = None
 z = None
 yaw = None
 velocity = None
 x = None
 dbw_enable = False
-LOOKAHEAD_WPS = 100
+LOOKAHEAD_WPS = 150
 count = 0
 
 cw_x = None
@@ -70,9 +72,9 @@ final_waypoint_lock = threading.Lock()
 final_waypoint_updated = None
 
 # ----- control related -----
-TARGET_SPEED = 30  # MPH
+TARGET_SPEED = 20  # MPH
 
-SAMPLE_TIME = 0.1  #defalut 0.1
+SAMPLE_TIME = 0.20  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
 
@@ -92,6 +94,12 @@ steering_LPF = LowPassFilter(8.0,2.0)
 # ------ MapZone ------
 map_zone = MapZone()
 
+#---- logging -----
+
+logging.basicConfig( filename='Z:\TEMP\output.txt', level=logging.INFO)
+
+logging.info('Hello Logging!{}'.format(time.strftime('%X')))
+
 def display_parameters():
 
     while True:
@@ -99,13 +107,13 @@ def display_parameters():
         if dbw_enable and throttle is not None:
             delta_time = time.time() - start_time
             if steering > 0.0:
-                fmt_string = '{: .1f} {:.3f} {:.3f}\t[{: .2f} {: .2f} ]\t<{: .2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'
+                fmt_string = '{: .1f} {:.2f} {:.2f}\t[{: .2f} {: .2f} ]\t<{: .2f}  \t[{: .3f}\t{: .3f}\t{: .2f} ]'
             else:
-                fmt_string = '{: .1f} {:.3f} {:.3f}\t[{: .2f} {: .2f} ]\t {: .2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'
+                fmt_string = '{: .1f} {:.2f} {:.2f}\t[{: .2f} {: .2f} ]\t {: .2f} >\t[{: .3f}\t{: .3f}\t{: .2f} ]'
 
             print(fmt_string.format(delta_time, time_find_path*1000.0, time_path_planning*1000.0, x, y, yaw, steering, throttle, brake))
 
-        time.sleep(2.5)
+        time.sleep(0.5)
     pass
 
 def find_final_waypoint():  # 0.5Hz
@@ -172,6 +180,21 @@ def dbw_control():
                     pp.maps_delta_s[0] = 0.0
 
                 sp_x, sp_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x_copy, cw_y_copy)
+
+                # logging.info('-------- car pose ---------')
+                # logging.info('{:.2f}, {:.2f}, {:.2f}'.format(car_x, car_y,theta))
+
+                # logging.info('-------- cw waypoints ---------')
+                # for i in range(0,len(cw_x_copy)):
+                #     logging.info('{:.2f}, {:.2f}'.format(cw_x_copy[i],cw_y_copy[i]))
+
+#                logging.info('')
+#                 for i in range(0,len(sp_x)):
+#                     logging.info('{:.2f}, {:.2f}'.format(sp_x[i], sp_y[i]))
+
+#                 logging.info('')
+#                 logging.info('')
+# '''
 
                 find_actuation()
 
@@ -242,12 +265,11 @@ def telemetry(sid, data):
         data_rdy = True
 
     if dbw_enable:
-        count = count + 1
-        if count == 2:
-            #if control_data_rdy:
+#        count = count + 1
+#        if count == 2:
+        if control_data_rdy:
             send_control()
-            #    control_data_rdy = False
-            count = 0
+            control_data_rdy = False
 
     pass
 
@@ -363,7 +385,7 @@ def find_actuation():
     #   normalized steerting = wheel_angle * STEER_SENSITIVITY
     steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed) * STEER_SENSITIVITY
 
-    steering = steering_LPF.filt(steering)
+    #steering = steering_LPF.filt(steering)
 
     pass
 
@@ -399,7 +421,7 @@ def calcAngularVelocity(cw_x, cw_y, current_yaw):
 
     phi = normalize_angle(math.atan2(y, x) - current_yaw)
 
-    targetAngle =  theta * 0.5 + phi * 0.5
+    targetAngle =  theta * 0.7 + phi * 0.3
 
     dist = math.sqrt( math.pow(cw_x[6]-cw_x[1],2.0)+math.pow(cw_y[6]-cw_y[1],2.0))
 

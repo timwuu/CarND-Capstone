@@ -1,8 +1,17 @@
+#!/usr/bin/env python
+
+# 
+# 2017.09.27 timijk:
+#       1. Add 2 more points to SPLINE calculation
+#       2. Remove the coordinate transformation used in the SPLINE calculation
+#       3. Add distance_sq function to increase performance
 
 import math
 import numpy as np
 import csv
 from scipy import interpolate
+
+import logging
 
 from waypoint_updater.map_zone import MapZone
 
@@ -28,99 +37,11 @@ class PathPlanner(object):
         car_s, car_d = self.getFrenet(car_x, car_y, theta, maps_x, maps_y)
         maps_s, maps_d = self.getMapsS(maps_x, maps_y)
 
-        '''
-        testX, testY = self.getXY(0.,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(30,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(60,0, maps_s, maps_x, maps_y)
-        testX, testY = self.getXY(90,0, maps_s, maps_x, maps_y)
-        '''
+        #logging.info('s:{} :{:.2f}'.format(len(maps_s),maps_s[len(maps_s)-1]))
 
         map_waypoints_s = maps_s
         map_waypoints_x = maps_x
         map_waypoints_y = maps_y
-
-
-        ref_vel = min(car_speed,40.0)  #limit to 10 miles/hr #TODO: multiply by factor??
-        #if ref_vel == 0:
-        #    ref_vel = 1.0
-
-        '''
-        cpp code for sensor fusion
-
-        // Previous path data given to the Planner
-        auto previous_path_x = j[1]["previous_path_x"];
-        auto previous_path_y = j[1]["previous_path_y"];
-        // Previous path's end s and d values
-        double end_path_s = j[1]["end_path_s"];
-        double end_path_d = j[1]["end_path_d"];
-
-        // Sensor Fusion Data, a list of all other cars on the same side of the road.
-        auto sensor_fusion = j[1]["sensor_fusion"];
-
-        int prev_size = previous_path_x.size();  // the size of the last path the car was following
-        // cout << "prev_size: " << prev_size << endl;
-
-        if (prev_size > 0) {
-            car_s = end_path_s;
-        }
-
-        bool left_side_clear = true;
-
-        for (int i=0; i < sensor_fusion.size(); i++) {
-            float d = sensor_fusion[i][6];
-            if ((lane > 0) && ((d < (2 + 4 * (lane - 1) + 2) && d > (2 + 4 * (lane - 1) - 2)))) {
-                // car is on the left lane
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx * vx + vy * vy);
-                double check_car_s = sensor_fusion[i][5];
-
-                check_car_s += ((double) prev_size * 0.02 * check_speed);  // future distance of the car
-
-                if (fabs(check_car_s - car_s) < 30) {
-                    left_side_clear = false;
-                    cout << "alert: car detected on the left!" << endl;
-                }
-            }
-        }
-
-        bool too_close = false;
-        bool very_close = false;
-
-        // find ref_v to use
-        for (int i=0; i < sensor_fusion.size(); i++) {
-            float d = sensor_fusion[i][6];
-            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
-                // car is in my lane
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx * vx + vy * vy);
-                double check_car_s = sensor_fusion[i][5];
-
-                check_car_s += ((double) prev_size * 0.02 * check_speed);  // future distance of the car
-
-                if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-                    // ref_vel = 29.5; // mph
-                    too_close = true;
-                    if ((check_car_s - car_s) < 15) {
-                        very_close = true;
-                    }
-                    if ((lane > 0) & (left_side_clear)) {
-                        lane = 0;
-                    }
-                }
-            }
-        }
-
-        if (very_close) {
-            ref_vel -= 0.448;
-        }
-        if (too_close) {
-            ref_vel -= 0.224;
-        } else if (ref_vel < 49.5) {
-            ref_vel += 0.224;
-        }
-        '''
 
         # Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
         # Later we will interpolate these waypoints with spline and fill it with
@@ -135,9 +56,7 @@ class PathPlanner(object):
         ref_yaw = theta
 
         # if previous size is almost empty, use the car as starting reference
-        '''
-        if (prev_size < 2) :
-        '''
+
         # Use two points that make the path tangent to the car
         prev_car_x = car_x - math.cos(ref_yaw)          # This is the same as math.cos(theta) * 1
         prev_car_y = car_y - math.sin(ref_yaw)
@@ -148,53 +67,37 @@ class PathPlanner(object):
         ptsy.append(prev_car_y)
         ptsy.append(car_y)
 
-        '''
-        else:
-            #use the previous path's end points as starting reference
-            ref_x = previous_path_x[prev_size-1]
-            ref_y = previous_path_y[prev_size-1]
-
-            ref_x_prev = previous_path_x[prev_size-2]
-            ref_y_prev = previous_path_y[prev_size-2]
-            ref_yaw = math.arctan2(ref_y-ref_y_prev, ref_x-ref_x_prev)
-
-            #use two points that make the path tangent to the previous path's end point
-            ptsx.append(ref_x_prev)
-            ptsx.append(ref_x)
-
-            ptsy.append(ref_y_prev)
-            ptsy.append(ref_y)
-        '''
-
         global LANE
         # In Frenet add evenly 30m spaced points ahead of the starting reference
         lane = LANE   # left lane: +1, right lane: -1
         road_width = 4
         middle_of_lane = 0
-        #next_wp0 = self.getXY(car_s + 30, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y)
-        #next_wp1 = self.getXY(car_s + 60, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y)
-        #next_wp2 = self.getXY(car_s + 90, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        
+        #divide waypoints( 90 meters max) by 5 segments, 
+        length_end_s = min(maps_s[len(maps_s)-1], 90.0) 
 
-        next_wp0 = self.getXY(car_s + 30, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
-        next_wp1 = self.getXY(car_s + 60, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
-        next_wp2 = self.getXY(car_s + 90, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        next_wp0 = self.getXY(car_s + length_end_s*0.2, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        next_wp1 = self.getXY(car_s + length_end_s*0.4, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        next_wp2 = self.getXY(car_s + length_end_s*0.6, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        next_wp3 = self.getXY(car_s + length_end_s*0.8, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
+        next_wp4 = self.getXY(car_s + length_end_s, middle_of_lane + road_width * lane, map_waypoints_s, map_waypoints_x, map_waypoints_y)
 
         ptsx.append(next_wp0[0])
         ptsx.append(next_wp1[0])
         ptsx.append(next_wp2[0])
+        ptsx.append(next_wp3[0])
+        ptsx.append(next_wp4[0])
 
         ptsy.append(next_wp0[1])
         ptsy.append(next_wp1[1])
         ptsy.append(next_wp2[1])
+        ptsy.append(next_wp3[1])
+        ptsy.append(next_wp4[1])
 
-        for i in range(0, len(ptsx)):
-            # shift car reference angle to 0 degrees
-            # convert into local car coordinate
-            shift_x = ptsx[i] - ref_x
-            shift_y = ptsy[i] - ref_y
-
-            ptsx[i] = (shift_x * math.cos(0 - ref_yaw) - shift_y * math.sin(0 - ref_yaw))
-            ptsy[i] = (shift_x * math.sin(0 - ref_yaw) + shift_y * math.cos(0 - ref_yaw))
+        # logging.info('')
+        # for i in range(0,7):
+        #     logging.info('ptsx.append({:.2f})'.format(ptsx[i]))
+        #     logging.info('ptsy.append({:.2f})'.format(ptsy[i]))
 
         # create a spline
         # set(x,y) points to the spline
@@ -204,67 +107,27 @@ class PathPlanner(object):
         next_x_vals = []
         next_y_vals = []
 
-        '''
-        # starts with all the previous path points from last time
-        for i in range(0, len(previous_path_x)):
-            next_x_vals.append(previous_path_x[i])
-            next_y_vals.append(previous_path_y[i])
-        '''
-
         # Calculate how to breakup spline points so that we travel at our desired reference velocity
 
-        spline_s = [-1, 0, 30, 60, 90]
+        spline_s = [-1.0, 0.0, length_end_s*0.2, length_end_s*0.4, length_end_s*0.6, length_end_s*0.8, length_end_s]
 
         pts = []
         for i in range(0, len(ptsx)):
             pts.append([ptsx[i],ptsy[i]])
         cs = interpolate.CubicSpline(spline_s, pts)
-        xs = np.linspace(0, 90, 30)
+        xs = np.linspace(0, length_end_s, 30)
         #plt.figure(figsize = (6.5, 4))
         #plt.plot(cs(xs)[:, 0], cs(xs)[:, 1], label='spline')
         #plt.plot(ptsx, ptsy)
 
         spoints = cs(xs)
 
-        x_add_on = 0.0
-        # Fill out the rest of our path planner after filling it with previous points, here we will always output waypoints_size points
         for i in range(1, len(xs)):
-            #N = (target_dist / (0.02 * ref_vel / 2.24))
-            x_point = spoints[i][0]
-            y_point = spoints[i][1]
-
-            #x_add_on = x_point
-
-            x_ref = x_point
-            y_ref = y_point
-
-            # rotate back to normal after rotating it earlier
-            x_point = (x_ref * math.cos(ref_yaw) - y_ref * math.sin(ref_yaw))
-            y_point = (x_ref * math.sin(ref_yaw) + y_ref * math.cos(ref_yaw))
-
-            x_point += ref_x
-            y_point += ref_y
-
-            next_x_vals.append(x_point)
-            next_y_vals.append(y_point)
-
-
-
-        '''
-        /*
-          // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-        double dist_inc = 0.5;
-        for(int i = 0; i < 50; i++)
-        {
-            double next_s = car_s + (i+1)*dist_inc;
-            double next_d = 6;
-            vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_x_vals.push_back(xy[0]);
-            next_y_vals.push_back(xy[1]);
-        }
-        */
-        '''
+            next_x_vals.append(spoints[i][0])
+            next_y_vals.append(spoints[i][1])
+  
         return next_x_vals, next_y_vals
+
 
     def getMapsS(self, maps_x, maps_y):
         # origin (s,d)
@@ -272,7 +135,6 @@ class PathPlanner(object):
         maps_d = [0.0]
         map_s_accu = 0.0
         for i in range(1, len(maps_x)):
-            #TODO: delete map_s, map_d = self.getFrenet(maps_x[i], maps_y[i], theta, maps_x, maps_y)
             map_s_accu = map_s_accu + self.maps_delta_s[i]
             maps_s.append(map_s_accu)
             maps_d.append(0.0)
@@ -285,18 +147,20 @@ class PathPlanner(object):
              self.maps_delta_s.append(delta)
         return 
 
-    # double distance(double x1, double y1, double x2, double y2)
     def distance(self, x1, y1, x2, y2):
         d = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
         return d
 
+    def distance_sq(self, x1, y1, x2, y2):
+        d = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
+        return d
 
     # int ClosestWaypoint(double x, double y, vector<double> maps_x, vector<double> maps_y)
     def ClosestWaypoint(self, x, y, maps_x, maps_y, map_zone=None):
 
         elems = map_zone.getZoneNeighborElements( x, y) if map_zone is not None else []
 
-        closestLen = 100000  # large number
+        closestLen = 9999999.9  # large number
         closestWaypoint = -1 # -1 if point not found
 
         if elems ==[]:
@@ -305,7 +169,7 @@ class PathPlanner(object):
         #print('elems:{}'.format(elems))
 
         for i in elems:
-            dist = self.distance(x, y, maps_x[i], maps_y[i])
+            dist = self.distance_sq(x, y, maps_x[i], maps_y[i])
             if (dist < closestLen):
                 closestLen = dist
                 closestWaypoint = i
