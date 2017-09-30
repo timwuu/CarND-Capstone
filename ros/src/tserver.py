@@ -7,6 +7,14 @@
 #
 # 2017.09.24 timijk:
 #       1. add MapZone feature
+#
+# 2017.09.29 timijk:
+#       1. convert speed/velocity to meter per second
+#
+# 2017.09.30 timijk:
+#       1. slow down the speed if the lateral acceleration is too large
+#       2. bug fix. map_zone.clear()
+
 
 import csv
 import json
@@ -72,15 +80,17 @@ final_waypoint_lock = threading.Lock()
 final_waypoint_updated = None
 
 # ----- control related -----
-TARGET_SPEED = 20  # MPH
+MPH2MPS = 0.44704 # miles/hr to m/s
+TARGET_SPEED = 40 * MPH2MPS  # meter per second
 
-SAMPLE_TIME = 0.20  #defalut 0.1
+SAMPLE_TIME = 0.05  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
-speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-0.5, mx=0.5)
+# mx=0.2: means acc.max = 1m/s^2
+speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-1.0, mx=0.4)
 
 WHEEL_BASE = 2.8498      # 2.8498 meters Lincoln MKZ
 STEER_RATIO = 14.8       # steer angle : wheel angle
-MAX_LAT_ACCEL = 3.       # default 3.
+MAX_LAT_ACCEL = 1.0       # default 3.
 MAX_STEER_ANGLE = 4.0    # include both positive and negative sides (-4/+4) radians
 
 STEER_SENSITIVITY = STEER_RATIO / MAX_STEER_ANGLE
@@ -119,7 +129,7 @@ def display_parameters():
 def find_final_waypoint():  # 0.5Hz
     global dbw_enable
 
-    slptime = 2.0 #every 2 seconds
+    slptime = 1.0 #default 2: every 2 seconds
 
     global time_find_path, final_waypoint_updated
 
@@ -238,6 +248,8 @@ def connect(sid, environ):
         for row in maps_reader:
             maps_x.append(float(row[0]))
             maps_y.append(float(row[1]))
+
+    map_zone.clear()    #bug fix: 2017.09.30    
     pp = PathPlanner( map_zone)
     maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
 
@@ -306,8 +318,8 @@ def send_control():
     sio.emit('steer', data={'steering_angle': str(steering)})
 
     if brake > 0.5:
-        sio.emit('brake', data={'brake': str(brake*20.0)})
         sio.emit('throttle', data={'throttle': str(0.0)})
+        sio.emit('brake', data={'brake': str(brake)})
     else:
         sio.emit('throttle', data={'throttle': str(throttle)})
         #sio.emit('brake', data={'brake': str(0.1)})
@@ -319,7 +331,7 @@ def extract_data(data):
     y = float(data['y'])
     z = float(data['z'])
     yaw = float(data['yaw'])
-    velocity = float(data['velocity'])
+    velocity = float(data['velocity']) * MPH2MPS  # convert to m/s
     x = float(data['x'])
 
     #yaw data cleansing
@@ -368,14 +380,38 @@ def find_actuation():
   
     brake = 0.0
 
+    # calculate angular velocity (implies radius/curvature) first
+    angular_velocity = calcAngularVelocity(sp_x, sp_y, current_yaw)  #radians
+
+    # check the max tangent speed if angular_velocity > 0.025
+    if angular_velocity > 0.025:
+        v = yaw_controller.get_max_linear_velocity( velocity, angular_velocity)
+
+        if desiredSpeed > v:
+            #print('[{: .2f}{: .2f}] max:{: .2f} target:{: .2f}'.format(x, y, v,desiredSpeed))
+            desiredSpeed = v
+
+        if velocity > v:
+            brake = 10000.0
+            throttle = 0.0
+            speed_controller.reset()
+            print('SHARPTURN - SLOWDOWN! Brake{: .2f} Applied!'.format(brake))
+
+
     global SAMPLE_TIME
-    throttle = speed_controller.step( desiredSpeed-currentSpeed, SAMPLE_TIME)
+
+    if brake == 0.0:
+        throttle = speed_controller.step( desiredSpeed-currentSpeed, SAMPLE_TIME)
+
+        if throttle < 0.0:
+            print('OVERSPEED - SLOWDOWN! throttle:{: .2f}'.format(throttle))
+            brake = 10000.0
+            throttle = 0.0
 
     # give a small randomized offset to the throttle value
     if throttle > 0.01:
         throttle = throttle + (random.random()-0.5)/100.
 
-    angular_velocity = calcAngularVelocity(sp_x, sp_y, current_yaw)  #radians
     # normalized steering : -1/+1
     #   normalized steering = steer_angle * 2 / MAX_STEER_ANGLE
     #   steer_angle = wheel_angle * STEER_RATIO
@@ -403,7 +439,7 @@ def normalize_angle(theta):
 def calcAngularVelocity(cw_x, cw_y, current_yaw):
     global velocity
 
-    current_speed_mps = velocity * 0.44  # to mps
+    current_speed_mps = velocity  # mps
 
     # target_angle * current_speed / distance between 5th point and the current point (~ 15m,
     # we use 90m spline and divides it into 30 segments)
