@@ -5,6 +5,8 @@ This is a simplified version without using ROS.  The whole system including the 
 
 The tserver.py uses threading to perform several tasks required in path planning, motion control and traffic light detection. The yserver.py is a simplied version without using threading.
 
+Sending the brake command will release the throttle even if (brake==0).
+
 ### Original Project Setup - Installation 
 
 * Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop). 
