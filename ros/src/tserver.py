@@ -14,7 +14,9 @@
 # 2017.09.30 timijk:
 #       1. slow down the speed if the lateral acceleration is too large
 #       2. bug fix. map_zone.clear()
-
+#
+# 2017.10.17 timijk: bug fix
+#       1. YawController.get_steering() returns steer angle and no need to normalize
 
 import csv
 import json
@@ -65,7 +67,7 @@ time_path_planning = 0.0
 time_find_path = 0.0
 
 
-sio = socketio.Server( async_handlers=True, max_http_buffer_size=64000, async_mode='eventlet')
+sio = socketio.Server( async_handlers=True, async_mode='eventlet')
 app = Flask(__name__)
 
 #dbw_enable = False
@@ -83,7 +85,7 @@ final_waypoint_updated = None
 MPH2MPS = 0.44704 # miles/hr to m/s
 TARGET_SPEED = 40 * MPH2MPS  # meter per second
 
-SAMPLE_TIME = 0.05  #defalut 0.1
+SAMPLE_TIME = 0.1  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
 # mx=0.2: means acc.max = 1m/s^2
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-1.0, mx=0.4)
@@ -307,6 +309,7 @@ def trafficlights(sid, data):
 @sio.on('image')
 def image(sid, data):
     #print("image",data)
+    #print('>')
     pass
 
 def send_control():
@@ -392,7 +395,7 @@ def find_actuation():
             desiredSpeed = v
 
         if velocity > v:
-            brake = 10000.0
+            brake = 250.0
             throttle = 0.0
             speed_controller.reset()
             print('SHARPTURN - SLOWDOWN! Brake{: .2f} Applied!'.format(brake))
@@ -405,21 +408,15 @@ def find_actuation():
 
         if throttle < 0.0:
             print('OVERSPEED - SLOWDOWN! throttle:{: .2f}'.format(throttle))
-            brake = 10000.0
+            brake = 250.0
             throttle = 0.0
 
     # give a small randomized offset to the throttle value
     if throttle > 0.01:
         throttle = throttle + (random.random()-0.5)/100.
 
-    # normalized steering : -1/+1
-    #   normalized steering = steer_angle * 2 / MAX_STEER_ANGLE
-    #   steer_angle = wheel_angle * STEER_RATIO
-    #   normalized steering = wheel_angle * { STEER_RATIO * 2 / MAX_STEER_ANGLE }
-    #   STEER_SENSITIVITY = STEER_RATIO * 2 / MAX_STEER_ANGLE
-    #
-    #   normalized steerting = wheel_angle * STEER_SENSITIVITY
-    steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed) * STEER_SENSITIVITY
+    # 2017.10.17 timijk, bug fix: get_steering returns steer_angle and no need to normalize
+    steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed)
 
     #steering = steering_LPF.filt(steering)
 
@@ -484,8 +481,8 @@ if __name__ == '__main__':
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)
 
-    print("start WSGI server, backlog=200!")
+    print("start WSGI server, backlog>=200!")
 
     # deploy as an eventlet WSGI server
     #    backlog >= 100 (performance issues)
-    eventlet.wsgi.server(eventlet.listen(('', 4567),backlog=200), app)
+    eventlet.wsgi.server(eventlet.listen(('', 4567),backlog=500), app)
