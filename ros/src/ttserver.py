@@ -21,6 +21,8 @@
 # 2017.10.17 timijk: bug fix
 #       1. update YawController's parameters to allow larger steering angles
 #
+# 2017.10.19 timijk: test with churchlot_with_cars.csv waypoints (working in progress)
+#       1. for the track waypoints requiring sharp turns, an accurate next waypoint is required.
 
 import csv
 import json
@@ -54,7 +56,7 @@ yaw = None
 velocity = None
 x = None
 dbw_enable = False
-LOOKAHEAD_WPS = 150
+LOOKAHEAD_WPS = 25
 count = 0
 
 cw_x = None
@@ -87,7 +89,7 @@ final_waypoint_updated = None
 
 # ----- control related -----
 MPH2MPS = 0.44704 # miles/hr to m/s
-TARGET_SPEED = 40 * MPH2MPS  # meter per second
+TARGET_SPEED = 2 * MPH2MPS  # meter per second
 
 SAMPLE_TIME = 0.1  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
@@ -135,7 +137,7 @@ def display_parameters():
 def find_final_waypoint():  # 0.5Hz
     global dbw_enable
 
-    slptime = 1.0 #default 2: every 2 seconds
+    slptime = 0.25 #default 2: every 2 seconds
 
     global time_find_path, final_waypoint_updated
 
@@ -197,6 +199,11 @@ def dbw_control():
 
                 sp_x, sp_y = pp.path_planning(LOOKAHEAD_WPS, car_x, car_y, theta, car_speed, cw_x_copy, cw_y_copy)
 
+                sp_x = cw_x_copy
+                sp_y = cw_y_copy
+
+                #print('{: .2f},{: .2f}\n{: .2f},{: .2f}'.format(car_x,car_y,sp_x[0],sp_y[0]))    
+
                 # logging.info('-------- car pose ---------')
                 # logging.info('{:.2f}, {:.2f}, {:.2f}'.format(car_x, car_y,theta))
 
@@ -212,7 +219,7 @@ def dbw_control():
 #                 logging.info('')
 # '''
 
-                find_actuation()
+                find_actuation2()
 
                 if math.fabs(steering) > 0.5:
                     throttle = min(0.1, throttle)
@@ -270,17 +277,22 @@ def connect(sid, environ):
     print("connect ", sid, ':', environ)
     global maps_x, maps_y, pp
 #    with open('./../../data/sim_waypoints.csv', 'rt') as csvfile:
-     with open('./../../data/wp_yaw_const.txt', 'rt') as csvfile:
+#    with open('./../../data/wp_yaw_const.txt', 'rt') as csvfile:
+
+    base_x = 1118.72  #1131.22
+    base_y = 1181.38  #1183.27
+
+    with open('./../../data/churchlot_with_cars.csv', 'rt') as csvfile:
         maps_x = []
         maps_y = []
         maps_reader = csv.reader(csvfile, delimiter=',')
         for row in maps_reader:
-            maps_x.append(float(row[0]))
-            maps_y.append(float(row[1]))
+            maps_x.append(float(row[0]) + base_x)
+            maps_y.append(float(row[1]) + base_y)
 
     map_zone.clear()    #bug fix: 2017.09.30    
     pp = PathPlanner( map_zone)
-    maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
+    # maps_x, maps_y = pp.cleanseWaypoints(True, maps_x, maps_y)
 
     #create map zones
     map_zone.zoning( maps_x, maps_y)
@@ -436,6 +448,52 @@ def find_actuation():
         if throttle < 0.0:
             print('OVERSPEED - SLOWDOWN! throttle:{: .2f}'.format(throttle))
             brake = 250.0
+            throttle = 0.0
+
+    # give a small randomized offset to the throttle value
+    if throttle > 0.01:
+        throttle = throttle + (random.random()-0.5)/100.
+
+    # 2017.10.17 timijk, bug fix: get_steering returns steer_angle and no need to normalize
+    steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed)
+
+    #steering = steering_LPF.filt(steering)
+
+    pass
+
+    # not using pathplanner version
+def find_actuation2():
+    global x, y, yaw, velocity, throttle, brake, steering
+    global sp_x, sp_y
+    global TARGET_SPEED
+
+    desiredSpeed = TARGET_SPEED
+    currentSpeed = velocity
+    target_x = sp_x[0]
+    target_y = sp_y[0]
+    current_x = x
+    current_y = y
+    current_yaw = yaw
+  
+    brake = 0.0
+
+    # calculate angular velocity (implies radius/curvature) first
+    dx = target_x - current_x
+    dy = target_y - current_y
+    dist = math.sqrt( dx*dx+dy*dy)
+
+    targetAngle = normalize_angle(math.atan2(dy, dx) - current_yaw)
+
+    angular_velocity = targetAngle * currentSpeed / dist
+
+    global SAMPLE_TIME
+
+    if brake == 0.0:
+        throttle = speed_controller.step( desiredSpeed-currentSpeed, SAMPLE_TIME)
+
+        if throttle < 0.0:
+            # 2017.10.18 print('OVERSPEED - SLOWDOWN! throttle:{: .2f}'.format(throttle))
+            # 2017.10.18 brake = 250.0
             throttle = 0.0
 
     # give a small randomized offset to the throttle value
