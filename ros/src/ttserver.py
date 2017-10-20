@@ -89,7 +89,7 @@ final_waypoint_updated = None
 
 # ----- control related -----
 MPH2MPS = 0.44704 # miles/hr to m/s
-TARGET_SPEED = 2 * MPH2MPS  # meter per second
+TARGET_SPEED = 7.0 * MPH2MPS  # meter per second
 
 SAMPLE_TIME = 0.1  #defalut 0.1
 ACCEL_SENSITIVITY = 0.06
@@ -97,7 +97,7 @@ ACCEL_SENSITIVITY = 0.06
 speed_controller = PID( ACCEL_SENSITIVITY*1.25, 0.003, 0.0, mn=-1.0, mx=0.4)
 
 WHEEL_BASE = 2.8498      # 2.8498 meters Lincoln MKZ
-STEER_RATIO = 14.8       # steer angle : wheel angle
+STEER_RATIO = 14.8 # default:14.8       # steer angle : wheel angle
 MAX_LAT_ACCEL = 3.0       # default 3.
 MAX_STEER_ANGLE = 8.0    # include both positive and negative sides (-4/+4) radians
 
@@ -264,7 +264,7 @@ def ClosestWaypoint2( x, y, theta, maps_x, maps_y):
     heading = math.atan2((map_y - y), (map_x - x))
     angle = abs(theta - heading)
 
-    if (angle > math.pi / 4):
+    if (angle > math.pi / 4.0):
         closestWaypoint = closestWaypoint + 1
 
     return closestWaypoint
@@ -469,23 +469,31 @@ def find_actuation2():
 
     desiredSpeed = TARGET_SPEED
     currentSpeed = velocity
-    target_x = sp_x[0]
-    target_y = sp_y[0]
     current_x = x
     current_y = y
     current_yaw = yaw
   
     brake = 0.0
 
+    dx = sp_x[1] - sp_x[0]
+    dy = sp_y[1] - sp_y[0]
+    phi = math.atan2(dy, dx)
+
     # calculate angular velocity (implies radius/curvature) first
-    dx = target_x - current_x
-    dy = target_y - current_y
+    dx = sp_x[0] - current_x
+    dy = sp_y[0] - current_y
+
     dist = math.sqrt( dx*dx+dy*dy)
 
-    targetAngle = normalize_angle(math.atan2(dy, dx) - current_yaw)
+    phi = normalize_angle( phi - math.atan2(dy, dx))
+
+    targetAngle = normalize_angle(math.atan2(dy, dx) - current_yaw) + 0.7 * phi
 
     angular_velocity = targetAngle * currentSpeed / dist
 
+    if angular_velocity > 0.025 and desiredSpeed > 0.1:
+        desiredSpeed = max(desiredSpeed / 3.86, 0.1)
+    
     global SAMPLE_TIME
 
     if brake == 0.0:
@@ -502,6 +510,7 @@ def find_actuation2():
 
     # 2017.10.17 timijk, bug fix: get_steering returns steer_angle and no need to normalize
     steering = yaw_controller.get_steering(desiredSpeed, angular_velocity, currentSpeed)
+    # steering = 8.0
 
     #steering = steering_LPF.filt(steering)
 
